@@ -8,7 +8,7 @@ Python >= 3.6, curio == 0.8, pika >= 0.11.2
 usage
 ------
 
-clone and run run.py in magne dir:
+clone and run magne/run.py:
 
 .. code-block::
 
