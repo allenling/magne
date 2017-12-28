@@ -16,11 +16,11 @@ close process:
   2. connection : try send all ack msgs to rabbitmq, close connection
 
 
-task1 ---> exchange1 ---> queue1 ---> consumer1 -----
-                                                    |  qos
-                                                     -------> channel ---> connection
-                                                    |
-task2 ---> exchange2 ---> queue2 ---> consumer2------
+task1 ---> exchange1 ---> queue1 ---> consumer1 ----                                       ---> worker 1
+                                                    |  qos                                |
+                                                     -------> channel ---> connection ---> ---> worker 2
+                                                    |                                     |
+task2 ---> exchange2 ---> queue2 ---> consumer2-----                                       ---> worker n
 
 '''
 import os
