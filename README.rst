@@ -10,7 +10,7 @@ usage
 
 clone and run run.py in magne dir:
 
-.. code-blocl::
+.. code-block::
 
     python3.6 magne/run.py
 
