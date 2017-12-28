@@ -24,6 +24,7 @@ class ConnectionStatus:
     ERROR = 1
     RUNNING = 2
     CLOSED = 3
+    PRECLOSE = 4
 
 
 class Exchange:
@@ -56,7 +57,7 @@ class MagneConnection:
         self.status = ConnectionStatus.INITAL
         self.reconnect_done_event = Event()
         self.qos = qos if qos is not None else len(self.queues)
-        self.logger.info('connection initial~~~~')
+        self.logger.debug('connection initial~~~~')
         return
 
     def parse_amqp_url(self):
@@ -376,15 +377,21 @@ class MagneConnection:
         self.status = ConnectionStatus.CLOSED
         return
 
+    async def pre_close(self):
+        # would not put any msg into queue more
+        self.putter_queue._queue = deque
+        # would not fetch any amqp msg more
+        await self.fetch_amqp_task.cancel()
+        self.status = ConnectionStatus.PRECLOSE
+        return
+
     async def close(self):
         '''
         connection should not be closed independently, it should be coordinated by master
         so, before connection close, worker pool have closed already
         '''
-        # would not put any msg into queue more
-        self.putter_queue._queue = deque
-        # would not fetch any amqp msg more
-        await self.fetch_amqp_task.cancel()
+        if self.status != ConnectionStatus.PRECLOSE:
+            self.logger.warning('should pre close connection!!')
         await self.wait_ack_queue_task.cancel()
         await self.close_amqp_connection()
         return
@@ -406,9 +413,8 @@ async def test_connection():
     logger.info('connection pid: %s' % os.getpid())
     await c.connect()
     await c.run()
-#     await curio.sleep(10)
-#     await c.close()
-#     await curio.sleep(25)
+    await curio.sleep(10)
+    await c.close()
     return
 
 

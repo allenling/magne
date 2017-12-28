@@ -18,9 +18,6 @@ def main():
     parser.add_argument('--worker-timeout', type=int, help='worker timeout, default 60s',
                         default=60,
                         )
-    parser.add_argument('--shutdown-wait', type=int, help='shutdown wait time, default: 10s',
-                        default=10,
-                        )
     parser.add_argument('--log-level', type=str, help='any level in logging, default: INFO',
                         default='INFO',
                         )
@@ -29,12 +26,11 @@ def main():
     worker_timeout = args.worker_timeout
     task_module = args.task
     amqp_url = args.amqp_url
-    shutdown_wait = args.shutdown_wait
     logger_level = args.log_level.upper()
     if logger_level not in logging._nameToLevel:
         raise Exception('invalid log level')
     logger_level = logging._nameToLevel[logger_level]
-    magne_main(worker_nums, worker_timeout, task_module, amqp_url, shutdown_wait, logger_level)
+    magne_main(worker_nums, worker_timeout, task_module, amqp_url, logger_level)
     return
 
 

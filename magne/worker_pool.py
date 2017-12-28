@@ -22,6 +22,8 @@ import json
 import multiprocessing
 import signal
 import importlib
+from collections import deque
+
 
 import curio
 from curio.workers import ProcessWorker, ExceptionWithTraceback
@@ -60,6 +62,7 @@ class MagneWorker(ProcessWorker):
         return
 
     def handler_parent_death(self, *args, **kwargs):
+        print('%s got init' % os.getpid())
         sys.exit()
         return
 
@@ -112,7 +115,8 @@ class MagneWorkerPool:
         self.idle_available = Event()
         self.wait_for_idle = False
         self.logger = logger
-        self.logger.info('+++new worker pool instance++++')
+        self.alive = True
+        self.logger.debug('+++new worker pool instance++++')
         return
 
     def __str__(self):
@@ -178,6 +182,7 @@ class MagneWorkerPool:
 
     async def wait_amqp_msg(self):
         self.logger.info('staring wait_amqp_msg')
+        delivery_tag = None
         try:
             while True:
                 msg = await self.getter_queue.get()
@@ -191,10 +196,14 @@ class MagneWorkerPool:
                     func_name, args = data['func_name'], data['args']
                 except Exception as e:
                     self.logger.error('invalid msg, %s' % e, exc_info=True)
+                    # delivery_tag must be set!!!!
                     await self.send_ack_queue(delivery_tag)
-                    continue
-                self.logger.info('worker pool got a task %s, %s(%s)' % (delivery_tag, func_name, args))
-                await self.apply(func_name, args, delivery_tag)
+                else:
+                    self.logger.info('worker pool got a task %s, %s(%s)' % (delivery_tag, func_name, args))
+                    await self.apply(func_name, args, delivery_tag)
+        except curio.CancelledError:
+            # TODO: cancel while apply?
+            self.logger.info('wait_amqp_msg cancel')
         except Exception as e:
             self.logger.error('worker pool wait_amqp_msg error: %s' % e, exc_info=True)
             raise e
@@ -213,6 +222,7 @@ class MagneWorkerPool:
         func_name, args = wobj.func, wobj.args
         self.logger.info('watching worker %s for %s(%s)' % (wobj.ident, func_name, args))
         success, res = False, None
+        canceled = False
         try:
             success, res = await curio.timeout_after(self.worker_timeout, wobj.recv)
         except curio.TaskTimeout:
@@ -220,15 +230,21 @@ class MagneWorkerPool:
             self.logger.error('worker %s run %s(%s) timeout!' % (wobj.ident, func_name, args))
             self.kill_worker(wobj)
             self.logger.info('shutdown worker %s...' % wobj.ident)
-            self.manage_worker()
+            if self.alive is True:
+                self.manage_worker()
+        except curio.CancelledError:
+            self.logger.info('watch %s cancel' % wobj.ident)
+            canceled = True
         else:
             self.logger.info('worker %s run %s(%s) return %s, %s' % (wobj.ident, func_name, args, success, res))
             del self.busy_workers[wobj.ident]
             self.idle_workers.append(wobj.ident)
         del self.watch_tasks[wobj.ident]
-        await self.send_ack_queue(wobj.delivery_tag)
-        if self.wait_for_idle is True:
-            await self.idle_available.set()
+        # cancel would not send ack!!!!
+        if canceled is False:
+            await self.send_ack_queue(wobj.delivery_tag)
+            if self.wait_for_idle is True:
+                await self.idle_available.set()
         return
 
     def kill_all_workers(self):
@@ -245,9 +261,6 @@ class MagneWorkerPool:
         else:
             self.idle_workers.remove(wobj.ident)
         del self.workers[wobj.ident]
-        watch_task = self.watch_tasks.get(wobj.ident)
-        if watch_task is not None:
-            watch_task.cancel()
         return
 
     def reap_workers(self):
@@ -262,11 +275,7 @@ class MagneWorkerPool:
                 self.logger.debug('%s, %s' % (self.workers, wpid))
                 if wpid not in self.workers:
                     self.logger.error('worker pool do not contains reapd worker %' % wpid)
-                    if wpid in self.busy_workers:
-                        wobj = self.busy_workers[wpid]
-                        del self.busy_workers[wobj.ident]
-                    else:
-                        self.idle_workers.remove(wobj.ident)
+                    # TODO:
                 else:
                     self.kill_worker(self.workers[wpid])
                 self.manage_worker()
@@ -275,7 +284,26 @@ class MagneWorkerPool:
                 raise
         return
 
-    async def close(self):
+    async def close(self, warm=True):
+        # do not get amqp msg
+        self.alive = False
+        self.getter_queue._queue = deque()
+        await self.wait_amqp_msg_task.cancel()
+        # wait for worker done
+        if warm is True:
+            try:
+                async with curio.timeout_after(self.worker_timeout):
+                    async with curio.TaskGroup(self.watch_tasks.values()) as wtg:
+                        await wtg.join()
+            except curio.TaskTimeout:
+                # task_group will cancel all remaining tasks while catch TaskTimeout(CancelError), yes, that is true
+                # so, we do not have to cancel all remaining tasks by ourself
+                self.logger.info('watch_tasks join timeout...')
+        else:
+            # cold close, just cancel all watch tasks
+            for watch_task_obj in list(self.watch_tasks.values()):
+                await watch_task_obj.cancel()
+        self.kill_all_workers()
         return
 
 
@@ -289,9 +317,9 @@ async def test_worker():
     logger.setLevel(logging.DEBUG)
     getter_queue = curio.Queue()
     putter_queue = curio.Queue()
-    wp = MagneWorkerPool(worker_nums=2, worker_timeout=30,
+    wp = MagneWorkerPool(worker_nums=2, worker_timeout=15,
                          getter_queue=getter_queue, putter_queue=putter_queue,
-                         task_module_path='sprayer.demo_task', logger=logger,
+                         task_module_path='magne.demo_task', logger=logger,
                          )
     stask = await curio.spawn(wp.start)
     await stask.join()
@@ -301,7 +329,7 @@ async def test_worker():
             'consumer_tag': 1,
             'exchange': 1,
             'routing_key': 1,
-            'data': {'func_name': 'sleep', 'args': [10]},
+            'data': json.dumps({'func_name': 'sleep', 'args': [10]}),
             }
     await wp.getter_queue.put(json.dumps(body))
     await curio.sleep(5)
@@ -313,10 +341,17 @@ async def test_worker():
     async with curio.SignalQueue(signal.SIGCHLD) as p:
         await p.get()
         wp.reap_workers()
+    print('reap done')
     print(wp.idle_workers, wp.workers, wp.busy_workers)
+    print('range send msg...')
     for i in range(3):
-        new_body = {'delivery_tag': i + 2, 'data': {'func_name': 'sleep', 'args': [15 * (i + 1) + 1]}}
+        new_body = {'delivery_tag': i + 2, 'data': json.dumps({'func_name': 'sleep', 'args': [15 * (i + 1) + 1]})}
         await wp.getter_queue.put(json.dumps(new_body))
+    await curio.sleep(3)
+    print(wp.idle_workers, wp.workers, wp.busy_workers, wp.getter_queue)
+    print('closing')
+    await wp.close(warm=False)
+    print(wp.putter_queue)
     return
 
 
