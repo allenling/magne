@@ -60,7 +60,6 @@ class MagneWorker(ProcessWorker):
         return
 
     def handler_parent_death(self, *args, **kwargs):
-        print('handler_parent_death:', *args, **kwargs)
         sys.exit()
         return
 

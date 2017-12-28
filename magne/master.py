@@ -133,15 +133,16 @@ class MagneMaster:
         return
 
 
-def main():
+def main(worker_nums, worker_timeout, task_module, amqp_url, shutdown_wait, logger_level):
     # for test
-    m = MagneMaster(os.cpu_count(), 30, 'magne.demo_task', 'amqp://guest:guest@localhost:5672//', logger_level=logging.DEBUG)
+    m = MagneMaster(worker_nums, worker_timeout, task_module, amqp_url, shutdown_wait, logger_level)
     try:
         curio.run(m.start, with_monitor=True)
     except Exception:
-        print('run cumaster exceptin!')
+        print('run magne master exception!')
     return
 
 
 if __name__ == '__main__':
-    main()
+    # for test
+    main(os.cpu_count(), 30, 'magne.demo_task', 'amqp://guest:guest@localhost:5672//', 30, logger_level=logging.DEBUG)
