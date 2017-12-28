@@ -1,9 +1,9 @@
 magne
 =======
 
-Curio, Rabbit, Distributed Task Queue(like celery)
+Curio, Rabbit, Distributed Task Queue(celery)
 
-python >= 3.6
+Python >= 3.6, curio == 0.8, pika >= 0.11.2
 
 usage
 ------
@@ -21,7 +21,6 @@ how it works
 
 TODO:
 ------
-
 1. restart, reload
 2. more process control
 3. more test
