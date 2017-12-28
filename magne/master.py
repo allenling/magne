@@ -16,11 +16,11 @@ close process:
   2. connection : try send all ack msgs to rabbitmq, close connection
 
 
-task1 ---> exchange1 ---> queue1 ---> consumer1 ----                                       ---> worker 1
-                                                    |  qos                                |
-                                                     -------> channel ---> connection ---> ---> worker 2
-                                                    |                                     |
-task2 ---> exchange2 ---> queue2 ---> consumer2-----                                       ---> worker n
+task1 ---> exchange1 ---> queue1 ---> consumer1 ----+                                       +---> worker 1
+                                                    |  qos                                  |
+                                                    + -------> channel ---> connection ---> +---> worker 2
+                                                    |                                       |
+task2 ---> exchange2 ---> queue2 ---> consumer2-----+                                       +---> worker n
 
 '''
 import os
@@ -52,9 +52,9 @@ class MagneMaster:
 
     async def watch_signal(self):
         while True:
-            # term, int for warm shutdown
-            # quit for cold shutdown
-            # hup for reload
+            # term for warm shutdown
+            # int  for cold shutdown
+            # hup  for reload
             with SignalQueue(signal.SIGTERM, signal.SIGINT, signal.SIGCHLD, signal.SIGHUP) as sq:
                 signo = await sq.get()
                 self.logger.info('get signal: %s' % signo)

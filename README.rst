@@ -3,6 +3,21 @@ magne
 
 Curio, Rabbit, Distributed Task Queue(like celery)
 
+python >= 3.6
+
+usage
+------
+
+clone and run run.py in magne dir:
+
+.. code-blocl::
+
+    python3.6 magne/run.py
+
+
+how it works
+--------------
+
 
 TODO:
 ------
