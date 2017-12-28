@@ -1,0 +1,6 @@
+magne/multiprocessing/
+
+test_curio.py
+test_pika.py
+test_multiprocessing.py
+
