@@ -154,7 +154,7 @@ class MagneConnection:
             await self.declare_queue(channel_number, queue_name)
             self.logger.debug('declare queue %s' % queue_name)
             await self.bind_queue_exchange(channel_number, exchange_name, queue_name, routing_key=queue_name)
-            self.logger.debug('bind exchange and queue')
+            self.logger.debug('bind exchange %s and queue %s' % (exchange_name, queue_name))
         await self.update_qos(channel_number, self.qos)
         self.logger.debug('update qos %s' % self.qos)
         return
@@ -267,18 +267,19 @@ class MagneConnection:
 
     async def fetch_from_amqp(self):
         self.logger.info('staring fetch_from_amqp')
-        try:
-            while True:
-                try:
-                    data = await self.sock.recv(self.MAX_DATA_SIZE)
-                    await self.send_msg(data)
-                except ConnectionResetError:
-                    self.logger.error('fetch_from_amqp ConnectionResetError, wait for reconnect...')
-                    await self.handle_connection_error()
-                    self.logger.debug('go on fetch_from_amqp')
-        except curio.CancelledError:
-            # what about reconnect
-            self.logger.info('fetch_from_amqp cancel')
+        while True:
+            try:
+                data = await self.sock.recv(self.MAX_DATA_SIZE)
+                await self.send_msg(data)
+            except ConnectionResetError:
+                self.logger.error('fetch_from_amqp ConnectionResetError, wait for reconnect...')
+                await self.handle_connection_error()
+                self.logger.debug('go on fetch_from_amqp')
+            except curio.CancelledError:
+                self.logger.info('fetch_from_amqp cancel')
+                break
+            except Exception as e:
+                self.logger.error('fetch_from_amqp error: %s' % e, exc_info=True)
         return
 
     async def send_msg(self, data):
@@ -366,6 +367,7 @@ class MagneConnection:
                 while self.getter_queue.empty() is False:
                     delivery_tag = await self.getter_queue.get()
                     last_ack_delivery_tags.append(delivery_tag)
+                self.logger.debug('%s wait for last ack' % last_ack_delivery_tags)
                 for d in last_ack_delivery_tags:
                     await self.ack(self.channel_number, d)
             except ConnectionResetError:

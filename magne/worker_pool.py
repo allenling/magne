@@ -5,7 +5,7 @@ spawn worker processes, manage workers
 
 1. how to watch a busy worker?
 
-2. what about edge case? like should timeout 30s, and worker success in 31s?
+2. what about edge case? timeout 30s, and worker success in 31s?
 
 body = {'channel_number': channel_number,
         'delivery_tag': delivery_tag,
@@ -16,7 +16,6 @@ body = {'channel_number': channel_number,
         }
 '''
 import os
-import sys
 import errno
 import json
 import multiprocessing
@@ -190,17 +189,20 @@ class MagneWorkerPool:
                     data = json.loads(msg_dict['data'])
                     func_name, args = data['func_name'], data['args']
                 except Exception as e:
-                    self.logger.error('invalid msg, %s' % e, exc_info=True)
-                    # delivery_tag must be set!!!!
+                    self.logger.error('invalid msg, %s, %s' % (msg, e), exc_info=True)
+                    # delivery_tag must had been set!!!!
                     await self.send_ack_queue(delivery_tag)
                 else:
-                    self.logger.info('worker pool got a task %s, %s(%s)' % (delivery_tag, func_name, args))
+                    self.logger.info('got a task %s, %s(%s)' % (delivery_tag, func_name, args))
                     await self.apply(func_name, args, delivery_tag)
         except curio.CancelledError:
-            # TODO: cancel while apply?
+            # cancel while await getter_queue.get, it`s fine, just discarding all msgs
+            # cancel while await self.apply?
+            # if had not apply to worker process yet, discarding msg is fine
+            # if had apply to worker process, we will wait a least one worker timeout while close
             self.logger.info('wait_amqp_msg cancel')
         except Exception as e:
-            self.logger.error('worker pool wait_amqp_msg error: %s' % e, exc_info=True)
+            self.logger.error('wait_amqp_msg error: %s' % e, exc_info=True)
             raise e
         return
 

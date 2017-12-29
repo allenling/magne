@@ -3,12 +3,13 @@ import logging
 
 import argparse
 
+import magne
 from magne.master import main as magne_main
 
 
 def main():
     cpu_count = os.cpu_count()
-    parser = argparse.ArgumentParser(prog='magne', description='run magne queue')
+    parser = argparse.ArgumentParser(prog='magne', description='run magne queue, version: %s' % magne.__version__)
     parser.add_argument('--task', type=str, help='task module path, default: magne.demo_task', default='magne.demo_task')
     parser.add_argument('--amqp-url', type=str, help='amqp address, default: amqp://guest:guest@localhost:5672//',
                         default='amqp://guest:guest@localhost:5672//',

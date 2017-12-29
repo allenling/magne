@@ -32,6 +32,7 @@ import curio
 from curio import Queue
 from curio import SignalQueue
 
+import magne
 from magne.connection import MagneConnection
 from magne.worker_pool import MagneWorkerPool
 from magne.helper import tasks as _tasks
@@ -77,7 +78,7 @@ class MagneMaster:
         return
 
     async def start(self):
-        self.logger.info('starting...%s' % os.getpid())
+        self.logger.info('Magne v%s starting..., pid: %s' % (magne.__version__, os.getpid()))
 
         self._task_module = importlib.import_module(self.task_module)
         self.logger.info('import task_module %s' % self.task_module)
