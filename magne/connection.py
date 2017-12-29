@@ -95,7 +95,7 @@ class MagneConnection:
         return
 
     async def send_tune_ok(self):
-        # for now, do not want a heartbeat
+        # TODO: for now, do not want a heartbeat
         tunk = pika.spec.Connection.TuneOk(frame_max=self.MAX_DATA_SIZE)
         frame_value = pika.frame.Method(0, tunk)
         await self.sock.sendall(frame_value.marshal())
@@ -346,6 +346,7 @@ class MagneConnection:
             frame_value = pika.frame.Method(self.channel_number, close_connection_frame)
             await self.sock.sendall(frame_value.marshal())
             await curio.timeout_after(1, self.assert_recv_method, pika.spec.Connection.CloseOk)
+            self.logger.info('closed connection')
         except curio.TaskTimeout:
             self.logger.error('send close connection frame got CloseOk TaskTimeout')
         except ConnectionResetError:
@@ -357,9 +358,10 @@ class MagneConnection:
 
     async def close_amqp_connection(self):
         # close connection if necessarily
-        if self.status == ConnectionStatus.RUNNING:
+        if self.status & ConnectionStatus.RUNNING:
             try:
                 # last ack
+                self.logger.info('last ack...')
                 last_ack_delivery_tags = []
                 while self.getter_queue.empty() is False:
                     delivery_tag = await self.getter_queue.get()
@@ -379,10 +381,14 @@ class MagneConnection:
 
     async def pre_close(self):
         # would not put any msg into queue more
+        self.logger.debug('preclosing...')
+        self.logger.debug('empty putter_queue')
         self.putter_queue._queue = deque
         # would not fetch any amqp msg more
+        self.logger.debug('cancel fetch_amqp_task...')
         await self.fetch_amqp_task.cancel()
-        self.status = ConnectionStatus.PRECLOSE
+        self.status = self.status | ConnectionStatus.PRECLOSE
+        self.logger.debug('status %s, preclose done' % self.status)
         return
 
     async def close(self):
@@ -390,10 +396,14 @@ class MagneConnection:
         connection should not be closed independently, it should be coordinated by master
         so, before connection close, worker pool have closed already
         '''
-        if self.status != ConnectionStatus.PRECLOSE:
+        self.logger.debug('closing connection')
+        if not (self.status & ConnectionStatus.PRECLOSE):
             self.logger.warning('should pre close connection!!')
+        self.logger.debug('cancel wait_ack_queue_task')
         await self.wait_ack_queue_task.cancel()
+        self.logger.debug('cancel close_amqp_connection')
         await self.close_amqp_connection()
+        self.logger.debug('close connection done')
         return
 
 

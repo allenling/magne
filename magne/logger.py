@@ -83,7 +83,7 @@ class TripleCLogger:
 def get_logger(name, level):
     logger = logging.getLogger(name)
     log_handler = logging.StreamHandler()
-    log_format = logging.Formatter('%(levelname)s %(asctime)s %(message)s')
+    log_format = logging.Formatter('%(levelname)-8s %(asctime)s %(message)s')
     log_handler.setFormatter(log_format)
     logger.addHandler(log_handler)
     logger.setLevel(level)
@@ -95,6 +95,7 @@ class WrapLogger:
     def __init__(self, name, level):
         self._logger = get_logger(name, level)
         self.name = name
+        self.prefix = name.split('-')[1] if '-' in name else name
         self.level = level
         return
 
@@ -102,7 +103,7 @@ class WrapLogger:
         return '<%s, %s>' % (self.name, logging.getLevelName(self.level))
 
     def full_msg(self, msg):
-        return '%s: %s' % (self.name, msg)
+        return '[{prefix:<10}]: {msg}'.format(prefix=self.prefix, msg=msg)
 
     def debug(self, msg, *args, **kwargs):
         return self._logger.debug(self.full_msg(msg), *args, **kwargs)
@@ -139,10 +140,18 @@ def test_triplec_logger():
 
 def main():
     # for test
-    l1 = get_component_log('MASTER', logging.DEBUG)
+    l1 = get_component_log('Magne-Master', logging.DEBUG)
     print(l1)
     l1.debug('master debug')
     l1.info('master info')
+    l2 = get_component_log('Magne-Connection', logging.DEBUG)
+    print(l2)
+    l2.debug('connection debug')
+    l2.info('connection info')
+    l3 = get_component_log('Magne-WorkerPool', logging.DEBUG)
+    print(l3)
+    l3.debug('workerpool debug')
+    l3.info('workerpool info')
     return
 
 

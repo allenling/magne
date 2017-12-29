@@ -61,14 +61,9 @@ class MagneWorker(ProcessWorker):
             self.nrequests = 0
         return
 
-    def handler_parent_death(self, *args, **kwargs):
-        print('%s got init' % os.getpid())
-        sys.exit()
-        return
-
     def run_server(self, ch, task_module_path,):
         # TODO: capture signal?
-        signal.signal(signal.SIGINT, self.handler_parent_death)
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
         task_module = importlib.import_module(task_module_path)
         while True:
             func_name, args = ch.recv()
@@ -120,7 +115,7 @@ class MagneWorkerPool:
         return
 
     def __str__(self):
-        return 'WorkerPool: %s_%s' % (self.workers, self.idle_workers)
+        return 'WorkerPool<ws:%s, iws:%s>' % (self.workers, self.idle_workers)
 
     def manage_worker(self):
         nc = len(self.workers) - self.worker_nums
@@ -129,7 +124,7 @@ class MagneWorkerPool:
             while -nc:
                 w = MagneWorker(self.task_module_path)
                 self.workers[w.ident] = w
-                self.logger.info('new worker: %s' % w.ident)
+                self.logger.info('create new worker: %s' % w.ident)
                 self.idle_workers.append(w.ident)
                 nc += 1
         elif nc > 0:
@@ -220,7 +215,7 @@ class MagneWorkerPool:
 
     async def watch_worker(self, wobj):
         func_name, args = wobj.func, wobj.args
-        self.logger.info('watching worker %s for %s(%s)' % (wobj.ident, func_name, args))
+        self.logger.debug('watching worker %s for %s(%s)' % (wobj.ident, func_name, args))
         success, res = False, None
         canceled = False
         try:
@@ -272,16 +267,15 @@ class MagneWorkerPool:
                     self.logger.info('there is not any worker wait for reap')
                     break
                 self.logger.info('reap worker %s, exit with %s' % (wpid, status))
-                self.logger.debug('%s, %s' % (self.workers, wpid))
                 if wpid not in self.workers:
                     self.logger.error('worker pool do not contains reapd worker %' % wpid)
-                    # TODO:
+                    # TODO: how?
                 else:
                     self.kill_worker(self.workers[wpid])
                 self.manage_worker()
         except OSError as e:
             if e.errno != errno.ECHILD:
-                raise
+                self.logger.error('reap worker error signal %s' % e.errno, exc_info=True)
         return
 
     async def close(self, warm=True):

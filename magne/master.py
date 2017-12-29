@@ -40,13 +40,14 @@ from magne.logger import get_component_log
 
 class MagneMaster:
 
-    def __init__(self, worker_nums, worker_timeout, task_module, amqp_url, logger_level=None):
+    def __init__(self, worker_nums, worker_timeout, task_module, amqp_url, qos, logger_level=None):
         self.worker_nums = worker_nums
         self.worker_timeout = worker_timeout
         self.task_module = task_module
         self.amqp_url = amqp_url
+        self.qos = qos
         self.logger_level = logger_level or logging.INFO
-        self.logger = get_component_log('Master', self.logger_level)
+        self.logger = get_component_log('Magne-Master', self.logger_level)
         self.logger.debug('ready for start!!!!!!!!!!!!!')
         return
 
@@ -78,8 +79,8 @@ class MagneMaster:
     async def start(self):
         self.logger.info('starting...%s' % os.getpid())
 
-        self.logger.info('import task_module')
         self._task_module = importlib.import_module(self.task_module)
+        self.logger.info('import task_module %s' % self.task_module)
         self.tasks = _tasks
         assert len(self.tasks) != 0
 
@@ -88,16 +89,16 @@ class MagneMaster:
         worker_pool_put_con = Queue()
 
         self.logger.debug('create new connection instance')
-        self.con = MagneConnection(queues=list(self.tasks.keys()), logger=get_component_log('Connection', self.logger_level),
+        self.con = MagneConnection(queues=list(self.tasks.keys()),
+                                   logger=get_component_log('Magne-Connection', self.logger_level),
                                    putter_queue=con_put_worker_pool, getter_queue=worker_pool_put_con,
-                                   qos=self.worker_nums, amqp_url=self.amqp_url,
+                                   qos=self.qos, amqp_url=self.amqp_url,
                                    )
 
         self.logger.debug('create new worker pool instance')
-        self.worker_pool = MagneWorkerPool(worker_nums=self.worker_nums, worker_timeout=self.worker_timeout,
-                                           putter_queue=worker_pool_put_con, getter_queue=con_put_worker_pool,
-                                           task_module_path=self.task_module,
-                                           logger=get_component_log('WorkerPool', self.logger_level),
+        self.worker_pool = MagneWorkerPool(worker_nums=self.worker_nums, logger=get_component_log('Magne-WorkerPool', self.logger_level),
+                                           worker_timeout=self.worker_timeout, putter_queue=worker_pool_put_con,
+                                           getter_queue=con_put_worker_pool, task_module_path=self.task_module,
                                            )
 
         self.logger.info('connection.connect')
@@ -120,7 +121,7 @@ class MagneMaster:
         self.logger.info('watching signal')
         await self.watch_signal()
 
-        self.logger.info('Master return...')
+        self.logger.info('Magne gone...')
         return
 
     async def close_worker_pool(self, warm):
@@ -141,9 +142,9 @@ class MagneMaster:
         return
 
 
-def main(worker_nums, worker_timeout, task_module, amqp_url, logger_level):
+def main(worker_nums, worker_timeout, task_module, amqp_url, qos, logger_level):
     # for test
-    m = MagneMaster(worker_nums, worker_timeout, task_module, amqp_url, logger_level)
+    m = MagneMaster(worker_nums, worker_timeout, task_module, amqp_url, qos, logger_level)
     try:
         curio.run(m.start, with_monitor=True)
     except Exception:
@@ -153,4 +154,5 @@ def main(worker_nums, worker_timeout, task_module, amqp_url, logger_level):
 
 if __name__ == '__main__':
     # for test
-    main(2, 30, 'magne.demo_task', 'amqp://guest:guest@localhost:5672//', logger_level=logging.DEBUG)
+    ws = 2
+    main(ws, 30, 'magne.demo_task', 'amqp://guest:guest@localhost:5672//', ws, logger_level=logging.DEBUG)
