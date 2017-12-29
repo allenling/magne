@@ -20,8 +20,8 @@ def main():
     parser.add_argument('--worker-timeout', type=int, help='worker timeout, default 60s',
                         default=60,
                         )
-    parser.add_argument('--qos', type=int, help='prefetch count, default cpu count',
-                        default=cpu_count,
+    parser.add_argument('--qos', type=int, help='prefetch count, default 0',
+                        default=0,
                         )
     parser.add_argument('--log-level', type=str, help='any level in logging, default: INFO',
                         default='INFO',

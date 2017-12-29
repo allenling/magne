@@ -21,7 +21,7 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=['curio >= 0.8.0',
-                      'pika  >= 0.11.2',
+                      'pika  >= 0.11,<0.12',
                       ],
     python_requires=">=3.6",
     license='MIT',

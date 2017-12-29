@@ -11,16 +11,18 @@ start process:
 
 close process:
 
-  1. worker pool: wait and close(kill) all worker processes, do not get amqp msg, try send all ack msgs into ack queue
+  1. connection : preclose, empty putter queue, cancel fetch amqp task
 
-  2. connection : try send all ack msgs to rabbitmq, close connection
+  2. worker pool: empty getter_queue, [wait timeout if warm shutdown and] kill all worker processes, try to send all ack msgs into ack queue
+
+  3. connection : try send all ack msgs to rabbitmq, and close connection
 
 
-task1 ---> exchange1 ---> queue1 ---> consumer1 ----+                                       +---> worker 1
-                                                    |  qos                                  |
-                                                    + -------> channel ---> connection ---> +---> worker 2
-                                                    |                                       |
-task2 ---> exchange2 ---> queue2 ---> consumer2-----+                                       +---> worker n
+task1 --- exchange1 --- queue1 --- consumer1 ----+                                    +---> worker1
+                                                 |  qos                               |
+task2 --- exchange2 --- queue2 --- consumer2 ----+ ------- channel --- connection --- +---> worker2
+                                                 |                                    |
+taskN --- exchangeN --- queueN --- consumerN-----+                                    +---> workerN
 
 '''
 import os
@@ -49,7 +51,6 @@ class MagneMaster:
         self.qos = qos
         self.logger_level = logger_level or logging.INFO
         self.logger = get_component_log('Magne-Master', self.logger_level)
-        self.logger.debug('ready for start!!!!!!!!!!!!!')
         return
 
     async def watch_signal(self):

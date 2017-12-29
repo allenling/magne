@@ -19,11 +19,18 @@ how it works
 --------------
 
 
+bechmark
+-----------
+
+Compare to celery, dramatiq
+
+
 TODO:
 ------
 1. restart, reload
 2. more process control
 3. more test
-4. monitor
+4. monitor, message timestamp, message unique id,...
 5. amqp heartbeat?
+6. more threads to consume?
 

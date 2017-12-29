@@ -3,7 +3,9 @@ inherit from curio.worker.ProcessWorker
 
 spawn worker processes, manage workers
 
-1. how to watch a busy worker?
+1. how to watch a busy worker?, spawn timeout_after watch task, set daemon=True
+
+   if daemon=False, annoying nerver joined warning
 
 2. what about edge case? timeout 30s, and worker success in 31s?
 
@@ -151,9 +153,9 @@ class MagneWorkerPool:
         while not self.idle_workers:
             self.wait_for_idle = True
             # there is no idle worker for ready, just wait
-            self.logger.info('waiting for any idle worker...')
+            self.logger.debug('waiting for any idle worker...')
             await self.idle_available.wait()
-            self.logger.info('a idle worker avaliable...')
+            self.logger.debug('a idle worker avaliable...')
             self.idle_available.clear()
         self.wait_for_idle = False
         w = self.idle_workers.pop(0)
@@ -166,7 +168,7 @@ class MagneWorkerPool:
             self.idle_workers.append(w)
             await self.send_ack_queue(delivery_tag)
             return
-        self.logger.info('worker pool apply worker %s: %s %s(%s)' % (w, delivery_tag, func_name, args))
+        self.logger.debug('worker pool apply worker %s: %s %s(%s)' % (w, delivery_tag, func_name, args))
         self.busy_workers[w] = wobj
         # watch task be set to daemon? is a right idea?
         watch_worker_task = await curio.spawn(self.watch_worker, wobj, daemon=True)
@@ -207,7 +209,7 @@ class MagneWorkerPool:
         return
 
     async def send_ack_queue(self, delivery_tag):
-        self.logger.info('send ack %s' % delivery_tag)
+        self.logger.debug('send ack %s' % delivery_tag)
         try:
             await self.putter_queue.put(delivery_tag)
         except Exception as e:
@@ -221,6 +223,7 @@ class MagneWorkerPool:
         success, res = False, None
         canceled = False
         try:
+            # timeout will cancel coro
             success, res = await curio.timeout_after(self.worker_timeout, wobj.recv)
         except curio.TaskTimeout:
             # got timeout
@@ -228,6 +231,7 @@ class MagneWorkerPool:
             self.kill_worker(wobj)
             self.logger.info('shutdown worker %s...' % wobj.ident)
             if self.alive is True:
+                # do not create new worker process while closing worker pool
                 self.manage_worker()
         except curio.CancelledError:
             self.logger.info('watch %s cancel' % wobj.ident)
@@ -288,6 +292,7 @@ class MagneWorkerPool:
         # wait for worker done
         if warm is True:
             try:
+                self.logger.info('wait %s for watch tasks join' % self.worker_timeout)
                 async with curio.timeout_after(self.worker_timeout):
                     async with curio.TaskGroup(self.watch_tasks.values()) as wtg:
                         await wtg.join()

@@ -156,7 +156,7 @@ class MagneConnection:
             await self.bind_queue_exchange(channel_number, exchange_name, queue_name, routing_key=queue_name)
             self.logger.debug('bind exchange %s and queue %s' % (exchange_name, queue_name))
         await self.update_qos(channel_number, self.qos)
-        self.logger.debug('update qos %s' % self.qos)
+        self.logger.info('update qos %s' % self.qos)
         return
 
     async def declare_exchange(self, channel_number, name):
@@ -188,7 +188,7 @@ class MagneConnection:
         return
 
     async def ack(self, channel_number, delivery_tag):
-        self.logger.info('ack: %s, %s' % (channel_number, delivery_tag))
+        self.logger.debug('ack: %s, %s' % (channel_number, delivery_tag))
         ack = pika.spec.Basic.Ack(delivery_tag=delivery_tag)
         frame_value = pika.frame.Method(channel_number, ack)
         await self.sock.sendall(frame_value.marshal())
@@ -203,7 +203,12 @@ class MagneConnection:
             await self.sock.sendall(frame_value.marshal())
             data = await self.sock.recv(self.MAX_DATA_SIZE)
             count, frame_obj = pika.frame.decode_frame(data)
-            assert isinstance(frame_obj.method, pika.spec.Basic.ConsumeOk)
+            # TODO: Deliver frame may comes by
+            if isinstance(frame_obj.method, pika.spec.Basic.ConsumeOk) is False:
+                if isinstance(frame_obj.method, pika.spec.Basic.Deliver):
+                    count = 0
+                else:
+                    raise Exception('got basic.ConsumeOk error, frame_obj %s' % frame_obj)
             self.logger.debug('get basic.ConsumeOk')
             # message data after ConsumeOk
             if len(data) > count:
