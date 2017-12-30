@@ -18,19 +18,24 @@ clone and cd magne, and run magne/run.py:
 how it works
 --------------
 
-
 bechmark
 -----------
 
-Compare to celery, dramatiq
+consumption speed Compares to celery and dramatiq
 
+process worker, no thread
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-TODO:
-------
-1. restart, reload
-2. more process control
-3. more test
-4. monitor, message timestamp, message unique id,...
-5. amqp heartbeat?
-6. more threads to consume?
+APPROXIMATELY EQUAL TO celery, much slower than dramatiq
+
+process process with threads
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+coroutine consumer
+~~~~~~~~~~~~~~~~~~~~~~~
+
+100 tasks
+
+1 process coroutine consumer APPROXIMATELY EQUAL TO dramatiq with 8 processes.
+
 

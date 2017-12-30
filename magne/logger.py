@@ -103,7 +103,7 @@ class WrapLogger:
         return '<%s, %s>' % (self.name, logging.getLevelName(self.level))
 
     def full_msg(self, msg):
-        return '[{prefix:<10}]: {msg}'.format(prefix=self.prefix, msg=msg)
+        return '[{prefix}]: {msg}'.format(prefix=self.prefix, msg=msg)
 
     def debug(self, msg, *args, **kwargs):
         return self._logger.debug(self.full_msg(msg), *args, **kwargs)
