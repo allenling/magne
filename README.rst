@@ -25,17 +25,17 @@ benchmark reference: dramatiq https://github.com/Bogdanp/dramatiq/blob/master/be
 
 benchmark function: latency_bench
 
-process worker, no thread
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. process worker, no thread
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 APPROXIMATELY EQUAL TO celery, much slower than dramatiq
 
 100 tasks, celery takes 40s, dramatiq takes 6s.
 
-process process with threads
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2. process worker with threads
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-coroutine consumer
+3. coroutine consumer
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 magne.coro_consumer
