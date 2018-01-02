@@ -181,6 +181,11 @@ class SpellsConnection(BaseAsyncAmqpConnection):
                 self.logger.error('decode_frame error: %s, %s' % (data, e), exc_info=True)
                 self.fragment_frame = data
                 break
+            else:
+                if frame_obj is None:
+                    self.logger.info('fragment frame: %s' % data)
+                    self.fragment_frame = data
+                    break
             data = data[count:]
             if getattr(frame_obj, 'method', None) and isinstance(frame_obj.method, pika.spec.Basic.Deliver):
                 last_body = {'channel': frame_obj.channel_number,
