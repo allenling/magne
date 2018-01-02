@@ -20,14 +20,18 @@ CLIENT_INFO = {'platform': 'Python 3.6.3', 'product': 'coro amqp consumer', 'ver
 
 class LarvaePool:
 
-    def __init__(self, timeout, task_module, log_level=logging.DEBUG):
+    def __init__(self, timeout, task_module, log_level=logging.DEBUG, low_water=400, height_water=1000):
         # TODO: detect connection lost, and wait for reconnect(event)
         # ack is the async method/function
         self.ack = None
         self.timeout = timeout
         self.task_module = task_module
         self.watching = {}
+        self.low_water, self.height_water = low_water, height_water
         self.logger = get_component_log('Magne-LarvaePool', log_level)
+        self.water_event = curio.Event()
+        self.alive = True
+        self.wait_height_water = False
         return
 
     def set_ack_method(self, ack_method):
@@ -38,6 +42,14 @@ class LarvaePool:
         # spawn consumers as many as we can
         for b in bodys:
             self.logger.debug('got body: %s' % b)
+            if len(self.watching) >= self.height_water:
+                # wait for low water
+                self.logger.info('waiting for low water, %s, %s' % (len(self.watching), self.height_water))
+                self.wait_height_water = True
+                await self.water_event.wait()
+                self.logger.info('now under low water')
+                self.wait_height_water = False
+                self.water_event.clear()
             ack_immediately = False
             try:
                 channel, devlivery_tag, data = b['channel'], b['delivery_tag'], json.loads(b['data'])
@@ -69,17 +81,22 @@ class LarvaePool:
                 else:
                     msg = 'task %s(%s) done, res: %s' % (task, args, res)
             await self.ack(channel, devlivery_tag)
-            del self.watching['%s_%s' % (channel, devlivery_tag)]
             if er is True:
                 self.logger.error(msg, exc_info=True)
             else:
                 self.logger.info(msg)
         except curio.CancelledError:
             self.logger.info('broodling %s canceled' % devlivery_tag)
+        finally:
+            del self.watching['%s_%s' % (channel, devlivery_tag)]
+            if self.alive:
+                if self.wait_height_water and len(self.watching) < self.low_water:
+                    await self.water_event.set()
         return
 
     async def close(self, warm=True):
         # close all watch tasks
+        self.alive = False
         if warm is True:
             self.logger.info('waiting for watch tasks join, timeout: %s' % self.timeout)
             try:
@@ -105,6 +122,7 @@ class SpellsConnection(BaseAsyncAmqpConnection):
     def __init__(self, *args, **kwargs):
         super(SpellsConnection, self).__init__(*args, **kwargs)
         self.spawn_method = None
+        self.fragment_frame = []
         return
 
     def set_spawn_method(self, spawn_method):
@@ -172,19 +190,20 @@ class SpellsConnection(BaseAsyncAmqpConnection):
         # [Basic.Deliver, frame.Header, frame.Body, ...]
         last_body = {}
         if self.fragment_frame:
-            data = self.fragment_frame + data
-            self.fragment_frame = ''
+            last_body, frag_data = self.fragment_frame
+            data = frag_data + data
+            self.fragment_frame = []
         while data:
             try:
                 count, frame_obj = pika.frame.decode_frame(data)
             except Exception as e:
                 self.logger.error('decode_frame error: %s, %s' % (data, e), exc_info=True)
-                self.fragment_frame = data
+                self.fragment_frame.extend([last_body, data])
                 break
             else:
                 if frame_obj is None:
-                    self.logger.info('fragment frame: %s' % data)
-                    self.fragment_frame = data
+                    self.logger.error('fragment fragment frame: %s' % data)
+                    self.fragment_frame.extend([last_body, data])
                     break
             data = data[count:]
             if getattr(frame_obj, 'method', None) and isinstance(frame_obj.method, pika.spec.Basic.Deliver):
@@ -197,7 +216,7 @@ class SpellsConnection(BaseAsyncAmqpConnection):
             elif isinstance(frame_obj, pika.frame.Body):
                 last_body['data'] = frame_obj.fragment.decode("utf-8")
                 # consume >1200 tasks would not run any task cause 100% cpu usage and hang, event can not call signal handler!
-                # TODO: limit ready tasks amount(height water and low water)? maybe no
+                # TODO: limit ready tasks amount(height water and low water)? maybe yes
                 await self.spawn_method([last_body])
                 last_body = {}
         return
