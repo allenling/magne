@@ -40,7 +40,7 @@ APPROXIMATELY EQUAL TO celery, much slower than dramatiq
 
 magne.coro_consumer
 
-qos=0, and coroutine with one process, dramatiq with 8 processes
+qos=0, and coroutine with one process compares with dramatiq with 8 processes
 
 (draw table library: https://github.com/allenling/draw-docs-table)
 
