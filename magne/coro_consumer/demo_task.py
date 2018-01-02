@@ -2,6 +2,19 @@ import curio
 import random
 
 from magne.helper import register
+from magne.coro_consumer.utils import DummyRedis
+
+dummy_redis = None
+
+counter_key = 'magne_coro_consumer'
+
+
+async def get_redis_connection():
+    global dummy_redis
+    dr = DummyRedis()
+    await dr.connect()
+    dummy_redis = dr
+    return
 
 
 @register
@@ -22,4 +35,7 @@ async def magne_latency_bench():
     else:
         duration = 1
     await curio.sleep(duration)
+    await dummy_redis.send_command('INCR', counter_key)
     return
+
+curio.run(get_redis_connection)

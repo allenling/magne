@@ -6,7 +6,9 @@ import json
 import importlib
 import os
 import signal
+import struct
 
+import pika
 import curio
 from curio import SignalQueue
 
@@ -18,14 +20,18 @@ CLIENT_INFO = {'platform': 'Python 3.6.3', 'product': 'coro amqp consumer', 'ver
 
 class LarvaePool:
 
-    def __init__(self, ack, timeout, task_module, log_level=logging.DEBUG):
+    def __init__(self, timeout, task_module, log_level=logging.DEBUG):
         # TODO: detect connection lost, and wait for reconnect(event)
         # ack is the async method/function
-        self.ack = ack
+        self.ack = None
         self.timeout = timeout
         self.task_module = task_module
         self.watching = {}
         self.logger = get_component_log('Magne-LarvaePool', log_level)
+        return
+
+    def set_ack_method(self, ack_method):
+        self.ack = ack_method
         return
 
     async def spawning(self, bodys):
@@ -49,6 +55,7 @@ class LarvaePool:
 
     async def broodling(self, channel, devlivery_tag, task, args, ack_immediately=False):
         try:
+            er = False
             msg = ''
             if ack_immediately is False:
                 try:
@@ -56,13 +63,17 @@ class LarvaePool:
                     res = await curio.timeout_after(self.timeout, task, *args)
                 except curio.TaskTimeout:
                     msg = 'task %s(%s) timeout' % (task, args)
-                except Exception:
-                    msg = 'await timeout task %s(%s) exception' % (task, args)
+                except Exception as e:
+                    er = True
+                    msg = 'timeout task %s(%s) exception: %s' % (task, args, e)
                 else:
                     msg = 'task %s(%s) done, res: %s' % (task, args, res)
             await self.ack(channel, devlivery_tag)
             del self.watching['%s_%s' % (channel, devlivery_tag)]
-            self.logger.info(msg)
+            if er is True:
+                self.logger.error(msg, exc_info=True)
+            else:
+                self.logger.info(msg)
         except curio.CancelledError:
             self.logger.info('broodling %s canceled' % devlivery_tag)
         return
@@ -80,7 +91,7 @@ class LarvaePool:
                 self.logger.info('watch task group join timeout...')
         else:
             self.logger.info('cold shutdown, cancel all watching tasks')
-            for t in self.watching:
+            for t in list(self.watching.values()):
                 await t.cancel()
         # delete ack
         self.ack = None
@@ -91,18 +102,44 @@ class SpellsConnection(BaseAsyncAmqpConnection):
     logger_name = 'Magne-Connection'
     client_info = CLIENT_INFO
 
-    async def run(self, spawn_method):
-        await self.connect()
-        await self.start_consume()
-        self.fetch_task = await curio.spawn(self.fetch_from_amqp, spawn_method)
+    def __init__(self, *args, **kwargs):
+        super(SpellsConnection, self).__init__(*args, **kwargs)
+        self.spawn_method = None
         return
 
-    async def fetch_from_amqp(self, spawn_method):
+    def set_spawn_method(self, spawn_method):
+        self.spawn_method = spawn_method
+        return
+
+    async def run(self):
+        await self.connect()
+        await self.start_consume()
+        self.fetch_task = await curio.spawn(self.fetch_from_amqp)
+        return
+
+    async def start_consume(self):
+        # create amqp consumers
+        for tag, queue_name in enumerate(self.queues):
+            start_comsume = pika.spec.Basic.Consume(queue=queue_name, consumer_tag=str(tag))
+            self.logger.debug('send basic.Consume %s %s' % (queue_name, str(tag)))
+            frame_value = pika.frame.Method(self.channel_obj.channel_number, start_comsume)
+            await self.sock.sendall(frame_value.marshal())
+            data = await self.sock.recv(self.MAX_DATA_SIZE)
+            count, frame_obj = pika.frame.decode_frame(data)
+            if isinstance(frame_obj.method, pika.spec.Basic.ConsumeOk) is False:
+                if isinstance(frame_obj.method, pika.spec.Basic.Deliver):
+                    count = 0
+                else:
+                    raise Exception('got basic.ConsumeOk error, frame_obj %s' % frame_obj)
+            self.logger.debug('get basic.ConsumeOk')
+            # message data after ConsumeOk
+            if len(data) > count:
+                await self.parse_and_spawn(data[count:])
+        self.logger.debug('start consume done!')
+        return
+
+    async def fetch_from_amqp(self):
         self.logger.info('staring fetch_from_amqp')
-        if self.start_bodys:
-            sbodys = self.start_bodys
-            self.start_bodys = []
-            await spawn_method(sbodys)
         try:
             while True:
                 try:
@@ -115,11 +152,49 @@ class SpellsConnection(BaseAsyncAmqpConnection):
                 except Exception as e:
                     self.logger.error('fetch_from_amqp error: %s' % e, exc_info=True)
                 else:
-                    bodys = self.parse_amqp_body(data)
-                    self.logger.debug('bodys: %s' % bodys)
-                    await spawn_method(bodys)
+                    await self.parse_and_spawn(data)
         except curio.CancelledError:
             self.logger.info('fetch_from_amqp canceled')
+        return
+
+    def fragment_frame_size(self, data_in):
+        try:
+            (frame_type, channel_number,
+             frame_size) = struct.unpack('>BHL', data_in[0:7])
+        except struct.error:
+            return 0, None
+
+        # Get the frame data
+        frame_end = pika.spec.FRAME_HEADER_SIZE + frame_size + pika.spec.FRAME_END_SIZE
+        return frame_end
+
+    async def parse_and_spawn(self, data):
+        # [Basic.Deliver, frame.Header, frame.Body, ...]
+        last_body = {}
+        if self.fragment_frame:
+            data = self.fragment_frame + data
+            self.fragment_frame = ''
+        while data:
+            try:
+                count, frame_obj = pika.frame.decode_frame(data)
+            except Exception as e:
+                self.logger.error('decode_frame error: %s, %s' % (data, e), exc_info=True)
+                self.fragment_frame = data
+                break
+            data = data[count:]
+            if getattr(frame_obj, 'method', None) and isinstance(frame_obj.method, pika.spec.Basic.Deliver):
+                last_body = {'channel': frame_obj.channel_number,
+                             'delivery_tag': frame_obj.method.delivery_tag,
+                             'consumer_tag': frame_obj.method.consumer_tag,
+                             'exchange': frame_obj.method.exchange,
+                             'routing_key': frame_obj.method.routing_key,
+                             }
+            elif isinstance(frame_obj, pika.frame.Body):
+                last_body['data'] = frame_obj.fragment.decode("utf-8")
+                # consume >1200 tasks would not run any task cause 100% cpu usage and hang, event can not call signal handler!
+                # TODO: limit ready tasks amount? maybe no
+                await self.spawn_method([last_body])
+                last_body = {}
         return
 
     async def preclose(self):
@@ -128,6 +203,7 @@ class SpellsConnection(BaseAsyncAmqpConnection):
 
     async def close(self):
         await self.send_close_connection()
+        self.spawn_method = None
         return
 
 
@@ -169,8 +245,10 @@ class Queen:
         self.logger.info('Queue pid: %s' % os.getpid())
         self.con = SpellsConnection(self.queues, self.amqp_url, self.qos, log_level=self.log_level)
 
-        self.spawning_pool = LarvaePool(self.con.ack, self.timeout, self.task_modue, log_level=self.log_level)
-        con_run_task = await curio.spawn(self.con.run, self.spawning_pool.spawning)
+        self.spawning_pool = LarvaePool(self.timeout, self.task_modue, log_level=self.log_level)
+        self.con.set_spawn_method(self.spawning_pool.spawning)
+        self.spawning_pool.set_ack_method(self.con.ack)
+        con_run_task = await curio.spawn(self.con.run)
         await con_run_task.join()
         signal_task = await curio.spawn(self.watch_signal)
         await signal_task.join()

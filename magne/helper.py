@@ -48,6 +48,10 @@ class Channel:
 
 
 class BaseAsyncAmqpConnection:
+    '''
+    open connection and channel
+    but do not contains Basic.Consume, and fetching amqp msg
+    '''
     MAX_DATA_SIZE = 131072
     logger_name = 'Magne-AsyncConnection'
     client_info = CLIENT_INFO
@@ -59,6 +63,7 @@ class BaseAsyncAmqpConnection:
         self.logger = self.get_logger()
         self.username, self.pwd, self.host, self.port, self.vhost = parse_amqp_url(amqp_url)
         self.start_bodys = []
+        self.fragment_frame = ''
         return
 
     def get_logger(self):
@@ -68,7 +73,10 @@ class BaseAsyncAmqpConnection:
         data = await self.sock.recv(self.MAX_DATA_SIZE)
         frame_obj = pika.frame.decode_frame(data)[1]
         try:
-            assert isinstance(frame_obj.method, method_class)
+            if getattr(frame_obj, 'method', None) is None:
+                assert isinstance(frame_obj, method_class)
+            else:
+                assert isinstance(frame_obj.method, method_class)
         except Exception as e:
             self.logger.error('assert_recv_method : %s, %s, %s' % (method_class, frame_obj, e), exc_info=True)
             raise e
@@ -178,27 +186,6 @@ class BaseAsyncAmqpConnection:
         await self.assert_recv_method(pika.spec.Basic.QosOk)
         return
 
-    async def start_consume(self):
-        # create amqp consumers
-        for tag, queue_name in enumerate(self.queues):
-            start_comsume = pika.spec.Basic.Consume(queue=queue_name, consumer_tag=str(tag))
-            self.logger.debug('send basic.Consume %s %s' % (queue_name, str(tag)))
-            frame_value = pika.frame.Method(self.channel_obj.channel_number, start_comsume)
-            await self.sock.sendall(frame_value.marshal())
-            data = await self.sock.recv(self.MAX_DATA_SIZE)
-            count, frame_obj = pika.frame.decode_frame(data)
-            if isinstance(frame_obj.method, pika.spec.Basic.ConsumeOk) is False:
-                if isinstance(frame_obj.method, pika.spec.Basic.Deliver):
-                    count = 0
-                else:
-                    raise Exception('got basic.ConsumeOk error, frame_obj %s' % frame_obj)
-            self.logger.debug('get basic.ConsumeOk')
-            # message data after ConsumeOk
-            if len(data) > count:
-                self.start_bodys.extend(self.parse_amqp_body(data[count:]))
-        self.logger.debug('start consume done!')
-        return
-
     async def ack(self, channel_number, delivery_tag):
         self.logger.debug('ack: %s, %s' % (channel_number, delivery_tag))
         ack = pika.spec.Basic.Ack(delivery_tag=delivery_tag)
@@ -232,26 +219,3 @@ class BaseAsyncAmqpConnection:
             self.logger.error('send close connection frame exception: %s' % e, exc_info=True)
         self.logger.info('closed amqp connection')
         return
-
-    def parse_amqp_body(self, data):
-        # [Basic.Deliver, frame.Header, frame.Body, ...]
-        bodys = []
-        while data:
-            count, frame_obj = pika.frame.decode_frame(data)
-            data = data[count:]
-            if isinstance(frame_obj.method, pika.spec.Basic.Deliver):
-                body = {'channel': frame_obj.channel_number,
-                        'delivery_tag': frame_obj.method.delivery_tag,
-                        'consumer_tag': frame_obj.method.consumer_tag,
-                        'exchange': frame_obj.method.exchange,
-                        'routing_key': frame_obj.method.routing_key,
-                        }
-                count, frame_obj = pika.frame.decode_frame(data)
-                if isinstance(frame_obj, pika.frame.Header):
-                    data = data[count:]
-                    count, frame_obj = pika.frame.decode_frame(data)
-                    if isinstance(frame_obj, pika.frame.Body):
-                        data = data[count:]
-                        body['data'] = frame_obj.fragment.decode("utf-8")
-                        bodys.append(body)
-        return bodys

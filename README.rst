@@ -21,12 +21,16 @@ how it works
 bechmark
 -----------
 
-consumption speed Compares to celery and dramatiq
+benchmark reference: dramatiq https://github.com/Bogdanp/dramatiq/blob/master/benchmarks/bench.py
+
+benchmark function: latency_bench
 
 process worker, no thread
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 APPROXIMATELY EQUAL TO celery, much slower than dramatiq
+
+100 tasks, celery takes 40s, dramatiq takes 6s.
 
 process process with threads
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -34,8 +38,25 @@ process process with threads
 coroutine consumer
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-100 tasks
+magne.coro_consumer
 
-1 process coroutine consumer APPROXIMATELY EQUAL TO dramatiq with 8 processes.
+qos=0, and coroutine with one process, dramatiq with 8 processes
 
+(draw table library: https://github.com/allenling/draw-docs-table)
+
++-------+-----------+----------+
+|       +           +          +
+| tasks + coroutine + dramatiq +
+|       +           +          +
++-------+-----------+----------+
+|       +           +          +
+| 100   + 5.33s     + 6.52s    +
+|       +           +          +
++-------+-----------+----------+
+|       +           +          +
+| 1000  + 10.46s    + 39.57s   +
+|       +           +          +
++-------+-----------+----------+
+
+and when there are 1200+ ready tasks in curio(>1500 tasks in rabbitmq), one process coroutine would takes almost 100% cpu usage and hang.
 
