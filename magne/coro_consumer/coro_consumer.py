@@ -192,7 +192,7 @@ class SpellsConnection(BaseAsyncAmqpConnection):
             elif isinstance(frame_obj, pika.frame.Body):
                 last_body['data'] = frame_obj.fragment.decode("utf-8")
                 # consume >1200 tasks would not run any task cause 100% cpu usage and hang, event can not call signal handler!
-                # TODO: limit ready tasks amount? maybe no
+                # TODO: limit ready tasks amount(height water and low water)? maybe no
                 await self.spawn_method([last_body])
                 last_body = {}
         return
