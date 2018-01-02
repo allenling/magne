@@ -54,7 +54,7 @@ qos=0, and coroutine with one process compares with dramatiq with 8 processes
 |       +           +          +
 +-------+-----------+----------+
 
-and when there are 1200+ ready tasks in curio(>1500 tasks in rabbitmq), one process coroutine would takes almost 100% cpu usage and hang.
+and when there are 1200+ ready tasks in curio(>1500 tasks in rabbitmq), coroutine would takes almost 100% cpu usage and hang.
 
 3.1 one process, but config lower water and height water
 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
