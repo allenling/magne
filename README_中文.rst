@@ -36,7 +36,7 @@ magne
 如果需要业务的view能够yield的话, 必须配套有比如reids, mysql这些异步工具,　然而现在并没有, 现在社区还是处于构建协程调度库(curio, asyncio, trio等等)状态
 
 
-dramatiq的线程模型是真的快, 而且方便, 必须要有其他的定制(比如magne, 你的task必须适应curio), 是由os来调度~~~
+dramatiq的线程模型是真的快, 而且方便, 不需要有其他的定制(比如magne, 你的task必须适应curio), 是由os来调度~~~
 
 celery是多进程的模式, 受限于不能多开进程~~~
 
