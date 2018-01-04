@@ -39,7 +39,7 @@ bechmark
 
 ubuntu16.04 Intel(R) Core(TM) i5-4250U(4 cores)
 
-benchmark reference: dramatiq https://github.com/Bogdanp/dramatiq/blob/master/benchmarks/bench.py
+benchmark reference: **dramatiq** https://github.com/Bogdanp/dramatiq/blob/master/benchmarks/bench.py
 
 benchmark function: latency_bench
 
@@ -64,9 +64,11 @@ drawing library: https://github.com/allenling/draw-docs-table
 3. coroutine consumer
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-coroutine takes more cpu, memory, io usage, monitored by dstat.
+qos = 0
 
-qos=0, and coroutine with one process compares with dramatiq with 8 processes
+single process coroutine
+
+dramatiq runs 8 processes
 
 +-------+-----------+----------+
 |       +   magne   +          +
