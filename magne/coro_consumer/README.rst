@@ -1,6 +1,8 @@
 coroutine amqp consumer
 =========================
 
+one child process, one connection
+
 1. qos config
 
 2. warm/cold shutdown

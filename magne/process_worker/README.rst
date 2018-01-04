@@ -5,7 +5,7 @@ magne process worker
 
 2. warm/cold shutdown
    
-   shutdown makes sure ack accomplishｍent.
+   shutdown makes sure ack accomplishment.
 
 3. reconnect
 
@@ -16,6 +16,6 @@ benchmark
 
 pip install -r bench_requirements.txt
 
-pythone3.6 run bench.py
+pythone3.6 bench.py
 
 

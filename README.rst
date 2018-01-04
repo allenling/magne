@@ -116,5 +116,4 @@ set lower water to 400, height water to 1000
 3.2 multiprocess
 ++++++++++++++++++
 
-one child process, on amqp channel
 
