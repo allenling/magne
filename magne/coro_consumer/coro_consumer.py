@@ -248,9 +248,11 @@ class Queen:
             # term for warm shutdown
             # int  for cold shutdown
             # hup  for reload
-            with SignalQueue(signal.SIGTERM, signal.SIGINT, signal.SIGHUP) as sq:
+            ss = [signal.SIGTERM, signal.SIGINT, signal.SIGCHLD, signal.SIGHUP]
+            sname = {i.value: i.name for i in ss}
+            with SignalQueue(*ss) as sq:
                 signo = await sq.get()
-                self.logger.info('get signal: %s' % signo)
+                self.logger.info('get signal: %s' % sname[signo])
                 if signo == signal.SIGHUP:
                     self.logger.info('reloading...')
                     # TODO: reload, restart?
@@ -284,17 +286,17 @@ class Queen:
         return
 
 
-def main():
+def main(timeout, task_module, qos, amqp_url='amqp://guest:guest@localhost:5672//', log_level=logging.DEBUG):
+    queen = Queen(timeout, task_module, qos, amqp_url, log_level=log_level)
+    curio.run(queen.start, with_monitor=True)
+    return
+
+
+if __name__ == '__main__':
     import sys
     log_level = logging.DEBUG
     if len(sys.argv) == 2 and '--log-level' in sys.argv[1]:
         log_level_name = sys.argv[1].split('=')[1]
         if log_level_name == 'INFO':
             log_level = logging.INFO
-    queen = Queen(30, 'magne.coro_consumer.demo_task', 0, log_level=log_level)
-    curio.run(queen.start, with_monitor=True)
-    return
-
-
-if __name__ == '__main__':
-    main()
+    main(30, 'magne.coro_consumer.demo_task', 0, log_level=log_level)

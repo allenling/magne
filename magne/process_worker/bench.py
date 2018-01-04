@@ -8,7 +8,7 @@ import argparse
 import subprocess
 import time
 
-from magne.master import main as magne_main
+from magne.process_worker.master import main as magne_process_main
 
 
 counter_key = "magne-latench-bench-counter"
@@ -40,7 +40,7 @@ def en_queue(n):
     for _ in range(n):
         channel.basic_publish('MAGNE_LATENCY_BENCH',
                               'MAGNE_LATENCY_BENCH',
-                              '{"func_name": "magne_latency_bench", "args": []}',
+                              '{"func": "magne_latency_bench", "args": []}',
                               )
     print('en_queue done')
     return
@@ -54,8 +54,8 @@ def setup(count):
 
 
 def run_magne(workers):
-    magne_main(workers, 200, 'magne.benchmark.bench_tasks', amqp_url='amqp://guest:guest@localhost:5672//',
-               qos=workers, logger_level="INFO")
+    magne_process_main(workers, 200, 'magne.benchmark.bench_tasks', amqp_url='amqp://guest:guest@localhost:5672//',
+                       qos=workers, logger_level="INFO")
     return
 
 
@@ -79,8 +79,8 @@ def main():
     with memcache_pool.reserve() as client:
         start_time = time.time()
         client.set(counter_key, 0)
-        cm = ['env', 'PYTHONPATH=/opt/curio:/opt/magne:/opt/magne/magne', 'python3.6', '/opt/magne/magne/run.py',
-              '--task=magne.benchmark.bench_tasks', '--workers=%s' % worker_numbers, '--qos=%s' % 0,
+        cm = ['env', 'PYTHONPATH=/opt/curio:/opt/magne:/opt/magne/magne', 'python3.6', '/opt/magne/magne/process_worker/run.py',
+              '--task=magne.process_worker.bench_tasks', '--workers=%s' % worker_numbers, '--qos=%s' % 0,
               '--worker-timeout=120']
         print(' '.join(cm))
         proc = subprocess.Popen(cm)

@@ -1,42 +1,48 @@
-import os
-import logging
-
+import sys
 import argparse
 
 import magne
-from magne.master import main as magne_main
+from magne.process_worker.run import main as process_main
+from magne.coro_consumer.run import main as coro_main
+
+desc = '''magne distributed task queue, v%s
+-----------------------------
+process  : process worker
+
+coroutine: coroutine worker
+-----------------------------
+''' % magne.__version__
 
 
 def main():
-    cpu_count = os.cpu_count()
-    parser = argparse.ArgumentParser(prog='magne', description='run magne queue, version: %s' % magne.__version__)
-    parser.add_argument('--task', type=str, help='task module path, default: magne.demo_task', default='magne.demo_task')
-    parser.add_argument('--amqp-url', type=str, help='amqp address, default: amqp://guest:guest@localhost:5672//',
-                        default='amqp://guest:guest@localhost:5672//',
-                        )
-    parser.add_argument('--workers', type=int, help='worker count, default: cpu count',
-                        default=cpu_count,
-                        )
-    parser.add_argument('--worker-timeout', type=int, help='worker timeout, default 60s',
-                        default=60,
-                        )
-    parser.add_argument('--qos', type=int, help='prefetch count, default 0',
-                        default=0,
-                        )
-    parser.add_argument('--log-level', type=str, help='any level in logging, default: INFO',
-                        default='INFO',
-                        )
-    args = parser.parse_args()
-    worker_nums = args.workers
-    worker_timeout = args.worker_timeout
-    task_module = args.task
-    qos = args.qos
-    amqp_url = args.amqp_url
-    logger_level = args.log_level.upper()
-    if logger_level not in logging._nameToLevel:
-        raise Exception('invalid log level')
-    logger_level = logging._nameToLevel[logger_level]
-    magne_main(worker_nums, worker_timeout, task_module, amqp_url, qos, logger_level)
+    parser = argparse.ArgumentParser(prog='magne',
+                                     formatter_class=argparse.RawDescriptionHelpFormatter,
+                                     description=desc,)
+
+    cmds = ['process', 'coroutine']
+    parser.add_argument('command', choices=cmds, help='run worker')
+
+    sub_help = False
+    if len(sys.argv) == 1:
+        sys.argv.append('--help')
+    elif sys.argv[1] in cmds:
+        if '--help' in sys.argv:
+            sub_help = True
+            sys.argv.remove('--help')
+        elif '--h' in sys.argv:
+            sub_help = True
+            sys.argv.remove('-h')
+    a = parser.parse_args()
+    if not a.__dict__:
+        print(parser.print_help())
+        return
+    if sub_help is True:
+        sys.argv.append('--help')
+    del sys.argv[1]
+    if a.command == 'process':
+        process_main()
+    elif a.command == 'coroutine':
+        coro_main()
     return
 
 

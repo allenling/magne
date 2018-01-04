@@ -11,6 +11,14 @@ with open('./magne/__init__.py', 'r') as f:
     else:
         raise RuntimeError("Version marker not found.")
 
+requires = []
+
+with open('requirements.txt', 'r') as f:
+    for rq in f.readlines():
+        rq = rq.strip()
+        if rq and rq[0] != '#':
+            requires.append(rq)
+
 setup(
     name="magne",
     version=version,
@@ -20,9 +28,7 @@ setup(
     url="https://github.com/allenling/magne",
     packages=find_packages(),
     include_package_data=True,
-    install_requires=['curio >= 0.8.0',
-                      'pika  >= 0.11,<0.12',
-                      ],
+    install_requires=requires,
     python_requires=">=3.6",
     license='MIT',
     entry_points={"console_scripts": ["magne = magne.run:main"]},

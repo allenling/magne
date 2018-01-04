@@ -24,16 +24,3 @@ def magne_latency_bench():
     time.sleep(duration)
     with memcache_pool.reserve() as client:
         client.incr(counter_key)
-
-
-@register
-def fib_bench(n):
-    p, q = 0, 1
-    while n > 0:
-        p, q = q, p + q
-        n -= 1
-
-    with memcache_pool.reserve() as client:
-        client.incr(counter_key)
-
-    return p

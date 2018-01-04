@@ -35,8 +35,8 @@ from curio import Queue
 from curio import SignalQueue
 
 import magne
-from magne.connection import MagneConnection
-from magne.worker_pool import MagneWorkerPool
+from magne.process_worker.connection import MagneConnection
+from magne.process_worker.worker_pool import MagneWorkerPool
 from magne.helper import tasks as _tasks
 from magne.logger import get_component_log
 
@@ -58,9 +58,11 @@ class MagneMaster:
             # term for warm shutdown
             # int  for cold shutdown
             # hup  for reload
-            with SignalQueue(signal.SIGTERM, signal.SIGINT, signal.SIGCHLD, signal.SIGHUP) as sq:
+            ss = [signal.SIGTERM, signal.SIGINT, signal.SIGCHLD, signal.SIGHUP]
+            sname = {i.value: i.name for i in ss}
+            with SignalQueue(*ss) as sq:
                 signo = await sq.get()
-                self.logger.info('get signal: %s' % signo)
+                self.logger.info('get signal: %s' % sname[signo])
                 if signo != signal.SIGCHLD:
                     if signo == signal.SIGTERM:
                         self.logger.info('kill myself...warm shutdown')
@@ -79,7 +81,7 @@ class MagneMaster:
         return
 
     async def start(self):
-        self.logger.info('Magne v%s starting..., pid: %s' % (magne.__version__, os.getpid()))
+        self.logger.info('Magne Process Worker: %s' % os.getpid())
 
         self._task_module = importlib.import_module(self.task_module)
         self.logger.info('import task_module %s' % self.task_module)
@@ -150,11 +152,11 @@ def main(worker_nums, worker_timeout, task_module, amqp_url, qos, logger_level):
     try:
         curio.run(m.start, with_monitor=True)
     except Exception:
-        print('run magne master exception!')
+        print('run magne process worker exception!')
     return
 
 
 if __name__ == '__main__':
     # for test
     ws = 2
-    main(ws, 30, 'magne.demo_task', 'amqp://guest:guest@localhost:5672//', ws, logger_level=logging.DEBUG)
+    main(ws, 30, 'magne.process_worker.demo_task', 'amqp://guest:guest@localhost:5672//', ws, logger_level=logging.DEBUG)

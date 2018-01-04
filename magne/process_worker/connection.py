@@ -6,7 +6,7 @@ body = {'channel_number': channel_number,
         'consumer_tag': consumer_tag,
         'exchange': exchange,
         'routing_key': routing_key,
-        'data': {'func_name': func_name, 'args': []},
+        'data': {'func': func_name, 'args': []},
         }
 '''
 import json
@@ -405,7 +405,8 @@ class MagneConnection:
         '''
         self.logger.debug('closing connection')
         if not (self.status & ConnectionStatus.PRECLOSE):
-            self.logger.warning('should pre close connection!!')
+            self.logger.warning('should pre close connection!!, now will preclose')
+            await self.pre_close()
         self.logger.debug('cancel wait_ack_queue_task')
         await self.wait_ack_queue_task.cancel()
         self.logger.debug('cancel close_amqp_connection')
@@ -431,6 +432,7 @@ async def test_connection():
     await c.connect()
     await c.run()
     await curio.sleep(10)
+    await c.pre_close()
     await c.close()
     return
 

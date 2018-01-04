@@ -8,6 +8,24 @@ Python >= 3.6, curio >= 0.8, pika >= 0.11.2
 usage
 ------
 
+git clone or download
+
+.. code-block:: 
+
+    pip install -r requirements.txt
+    cd magne
+
+1. run process worker
+
+.. code-block::
+
+    python run.py process
+
+2. run coroutine worker
+
+.. code-block::
+
+    python run.py coroutine
 
 how it works
 --------------
@@ -61,7 +79,7 @@ and when there are 1200+ ready tasks in curio(>1500 tasks in rabbitmq), coroutin
 
 when the amount of ready task reach height water, we will wait until amount of ready task down to low water
 
-low water default 400 tasks, height water default is 1000 tasks
+set lower water to 400, and height water 1000
 
 +-------+-----------+----------+
 |       +           +          +

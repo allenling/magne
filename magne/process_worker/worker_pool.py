@@ -14,7 +14,7 @@ body = {'channel_number': channel_number,
         'consumer_tag': consumer_tag,
         'exchange': exchange,
         'routing_key': routing_key,
-        'data': {'func_name': func_name, 'args': []},
+        'data': {'func': func_name, 'args': []},
         }
 '''
 import os
@@ -189,7 +189,7 @@ class MagneWorkerPool:
                     # msg_dict must contains delivery_tag!
                     delivery_tag = msg_dict['delivery_tag']
                     data = json.loads(msg_dict['data'])
-                    func_name, args = data['func_name'], data['args']
+                    func_name, args = data['func'], data['args']
                 except Exception as e:
                     self.logger.error('invalid msg, %s, %s' % (msg, e), exc_info=True)
                     # delivery_tag must had been set!!!!
@@ -292,7 +292,7 @@ class MagneWorkerPool:
         # wait for worker done
         if warm is True:
             try:
-                self.logger.info('wait %s for watch tasks join' % self.worker_timeout)
+                self.logger.info('watching tasks join, wait %ss' % self.worker_timeout)
                 async with curio.timeout_after(self.worker_timeout):
                     async with curio.TaskGroup(self.watch_tasks.values()) as wtg:
                         await wtg.join()
@@ -320,7 +320,7 @@ async def test_worker():
     putter_queue = curio.Queue()
     wp = MagneWorkerPool(worker_nums=2, worker_timeout=15,
                          getter_queue=getter_queue, putter_queue=putter_queue,
-                         task_module_path='magne.demo_task', logger=logger,
+                         task_module_path='magne.process_worker.demo_task', logger=logger,
                          )
     stask = await curio.spawn(wp.start)
     await stask.join()
@@ -330,7 +330,7 @@ async def test_worker():
             'consumer_tag': 1,
             'exchange': 1,
             'routing_key': 1,
-            'data': json.dumps({'func_name': 'sleep', 'args': [10]}),
+            'data': json.dumps({'func': 'sleep', 'args': [10]}),
             }
     await wp.getter_queue.put(json.dumps(body))
     await curio.sleep(5)
@@ -346,11 +346,11 @@ async def test_worker():
     print(wp.idle_workers, wp.workers, wp.busy_workers)
     print('range send msg...')
     for i in range(3):
-        new_body = {'delivery_tag': i + 2, 'data': json.dumps({'func_name': 'sleep', 'args': [15 * (i + 1) + 1]})}
+        new_body = {'delivery_tag': i + 2, 'data': json.dumps({'func': 'sleep', 'args': [15 * (i + 1) + 1]})}
         await wp.getter_queue.put(json.dumps(new_body))
     await curio.sleep(3)
     print(wp.idle_workers, wp.workers, wp.busy_workers, wp.getter_queue)
-    print('closing')
+    print('closing...')
     await wp.close(warm=False)
     print(wp.putter_queue)
     return
