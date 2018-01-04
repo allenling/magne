@@ -6,17 +6,50 @@ import curio
 
 class DummyRedis:
     '''
-    curio redis utils
-    for benchmark
+    curio redis utils for benchmark
+    using lock is a common way, but still not good enough, too many waiting lock tasks still cause ReadResourceBusy exception
+    any better way?
+    if spawn a task to get response, how could we join(cancel) it?
+    setting daemon to True can avoid join, but it is a good way?
     '''
 
     def __init__(self, host='localhost', port='6379'):
         self.host = host
         self.port = port
+        self.should_spawn = True
+        self._evs = curio.Queue()
+        self._ev_seq = 0
+        self._res = {}
         return
 
     async def connect(self):
         self.sock = await curio.open_connection(self.host, self.port)
+        return
+
+    async def distribute_response(self):
+        # daemon=True!
+        last_resp = ''
+        while True:
+            data = await self.sock.recv(1024)
+            # last element is empty string
+            dlist = data.split(b'\r\n')
+            if last_resp:
+                dlist[0] = last_resp + dlist[0]
+                last_resp = ''
+            if dlist[-1] != b'':
+                last_resp = dlist[-1]
+            dlist = dlist[:-1]
+            while dlist:
+                rdata = dlist.pop(0)
+                if b'$' in rdata:
+                    continue
+                # int
+                rdata = rdata.decode('utf-8')
+                if rdata[0] == ':':
+                    rdata = int(rdata[1:])
+                ev, ev_seq = await self._evs.get()
+                self._res[ev_seq] = rdata
+                await ev.set()
         return
 
     def encode(self, value):
@@ -32,10 +65,45 @@ class DummyRedis:
             value = value.encode('utf-8')
         return value
 
-    async def send_command(self, *args):
+    async def just_send(self, *args):
+        # do not wait for response
+        # for benchmark, it is enough
         data = self.pack_command(*args)
         await self.sock.send(data[0])
         return
+
+    async def wait_for_cmd_resp(self, *args):
+        data = self.pack_command(*args)
+        await self.sock.send(data[0])
+        # lock is not ok, too many waiting event will cause ReadResourceBusy exception
+        # TODO: any better idea?
+        async with curio.Lock():
+            res_data = await self.sock.recv(1024)
+        return res_data
+
+    async def send_and_spawn_rsp(self, *args):
+        # maybe spawn task to get resp?        # TODO: cause lost result, how to restrict send/recv, get/put?
+        cmd = self.pack_command(*args)
+        ev, ev_seq = curio.Event(), self._ev_seq
+        self._ev_seq += 1
+        await self._evs.put([ev, ev_seq])
+        await self.sock.send(cmd[0])
+        if self.should_spawn is True:
+            self.should_spawn = False
+            # daemon=True, we do not have to join task
+            self.resp_task = await curio.spawn(self.distribute_response, daemon=True)
+        await ev.wait()
+        data = self._res.pop(ev_seq)
+        return data
+
+    async def send_command(self, *args):
+        # just for test, use just_send
+        # data = await self.just_send(*args)
+        # how to recv data?
+        # data = await self.wait_for_cmd_resp(*args)
+        # maybe spawn task to get resp?
+        data = await self.send_and_spawn_rsp(*args)
+        return data
 
     def pack_command(self, *args):
         "Pack a series of arguments into the Redis protocol"

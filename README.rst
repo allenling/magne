@@ -1,7 +1,7 @@
 magne
 =======
 
-Curio, RabbitMQ, Distributed Task Queue(celery), MIT LICENSE.
+Curio, RabbitMQ, Distributed Task Queue
 
 Python >= 3.6, curio >= 0.8, pika >= 0.11.2
 
@@ -19,7 +19,7 @@ ubuntu16.04 Intel(R) Core(TM) i5-4250U(4 cores)
 
 benchmark reference: dramatiq https://github.com/Bogdanp/dramatiq/blob/master/benchmarks/bench.py
 
-benchmark function: latency_bench
+benchmark function: latency_bench(random sleep, but no more 10s)
 
 1. process worker, no thread
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -57,7 +57,7 @@ qos=0, and coroutine with one process compares with dramatiq with 8 processes
 and when there are 1200+ ready tasks in curio(>1500 tasks in rabbitmq), coroutine would takes almost 100% cpu usage and hang.
 
 3.1 one process, but config lower water and height water
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 when the amount of ready task reach height water, we will wait until amount of ready task down to low water
 
@@ -82,8 +82,8 @@ low water default 400 tasks, height water default is 1000 tasks
 +-------+-----------+----------+
 
 
-3.2 multiprocess, but no lower water and height water
-++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+3.2 multiprocess
+++++++++++++++++++
 
-
+one child process, on amqp channel
 

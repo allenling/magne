@@ -35,7 +35,7 @@ async def magne_latency_bench():
     else:
         duration = 1
     await curio.sleep(duration)
-    await dummy_redis.send_command('INCR', counter_key)
-    return
+    data = await dummy_redis.send_command('INCR', counter_key)
+    return data
 
 curio.run(get_redis_connection)
