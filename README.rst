@@ -84,7 +84,7 @@ dramatiq runs 8 processes
 |       +           +          +
 +-------+-----------+----------+
 
-and when there are 1200+ ready tasks in curio(>1500 tasks in rabbitmq), coroutine would takes almost 100% cpu usage and hang.
+and when there are 1200+ ready tasks in curio(>1500 tasks in rabbitmq), coroutine process would takes almost 100% cpu and hang.
 
 3.1 lower water and height water
 ++++++++++++++++++++++++++++++++++

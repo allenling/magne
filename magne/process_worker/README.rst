@@ -1,6 +1,15 @@
 magne process worker
 ======================
 
+1. qos config
+
+2. warm/cold shutdown
+   
+   shutdown makes sure ack accomplishｍent.
+
+3. reconnect
+
+
 
 benchmark
 ------------
