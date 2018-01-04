@@ -43,6 +43,8 @@ benchmark reference: dramatiq https://github.com/Bogdanp/dramatiq/blob/master/be
 
 benchmark function: latency_bench
 
+drawing library: https://github.com/allenling/draw-docs-table
+
 1. process worker, no thread
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -65,8 +67,6 @@ benchmark function: latency_bench
 coroutine takes more cpu, memory, io usage, monitored by dstat.
 
 qos=0, and coroutine with one process compares with dramatiq with 8 processes
-
-(the library of drawing table: https://github.com/allenling/draw-docs-table)
 
 +-------+-----------+----------+
 |       +   magne   +          +
