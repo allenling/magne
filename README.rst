@@ -71,7 +71,7 @@ single process coroutine
 dramatiq runs 8 processes
 
 +-------+-----------+----------+
-|       +   magne   +          +
+|       +           +          +
 | tasks + coroutine + dramatiq +
 |       +           +          +
 +-------+-----------+----------+
