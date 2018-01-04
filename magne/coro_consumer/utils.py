@@ -7,7 +7,7 @@ import curio
 class DummyRedis:
     '''
     curio redis utils for benchmark
-    using lock is a common way, but still not good enough, too many waiting lock tasks still cause ReadResourceBusy exception
+    using lock is a common way, but still not good enough, too many tasks waiting for lock still cause ReadResourceBusy exception
     any better way?
     if spawn a task to get response, how could we join(cancel) it?
     setting daemon to True can avoid join, but it is a good way?
@@ -76,13 +76,12 @@ class DummyRedis:
         data = self.pack_command(*args)
         await self.sock.send(data[0])
         # lock is not ok, too many waiting event will cause ReadResourceBusy exception
-        # TODO: any better idea?
         async with curio.Lock():
             res_data = await self.sock.recv(1024)
         return res_data
 
     async def send_and_spawn_rsp(self, *args):
-        # maybe spawn task to get resp?        # TODO: cause lost result, how to restrict send/recv, get/put?
+        # maybe spawn task to get resp?
         cmd = self.pack_command(*args)
         ev, ev_seq = curio.Event(), self._ev_seq
         self._ev_seq += 1
