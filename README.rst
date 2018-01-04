@@ -8,13 +8,13 @@ Python >= 3.6, curio >= 0.8, pika >= 0.11.2
 usage
 ------
 
-1.git clone or download
-~~~~~~~~~~~~~~~~~~~~~~~~
+1.git clone or download and
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: 
 
     pip install -r requirements.txt
-    cd magne
+    cd magne/magne
 
 
 2. run process worker
@@ -22,7 +22,7 @@ usage
 
 .. code-block::
 
-    python run.py process
+    python run.py process --help
 
 3. run coroutine worker
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -41,14 +41,20 @@ ubuntu16.04 Intel(R) Core(TM) i5-4250U(4 cores)
 
 benchmark reference: dramatiq https://github.com/Bogdanp/dramatiq/blob/master/benchmarks/bench.py
 
-benchmark function: latency_bench(random sleep, but no more 10s)
+benchmark function: latency_bench
 
 1. process worker, no thread
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-APPROXIMATELY EQUAL TO celery, much slower than dramatiq
-
-100 tasks, celery takes 40s, dramatiq takes 6s.
++-------+--------------+----------+
+|       +              +          +
+| tasks + celery/magne + dramatiq +
+|       +              +          +
++-------+--------------+----------+
+|       +              +          +
+| 100   + 45.12s       + 6.52s    +
+|       +              +          +
++-------+--------------+----------+
 
 2. process worker with threads
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -63,7 +69,7 @@ qos=0, and coroutine with one process compares with dramatiq with 8 processes
 (the library of drawing table: https://github.com/allenling/draw-docs-table)
 
 +-------+-----------+----------+
-|       +           +          +
+|       +   magne   +          +
 | tasks + coroutine + dramatiq +
 |       +           +          +
 +-------+-----------+----------+
@@ -78,12 +84,12 @@ qos=0, and coroutine with one process compares with dramatiq with 8 processes
 
 and when there are 1200+ ready tasks in curio(>1500 tasks in rabbitmq), coroutine would takes almost 100% cpu usage and hang.
 
-3.1 one process, but config lower water and height water
-+++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+3.1 lower water and height water
+++++++++++++++++++++++++++++++++++
 
 when the amount of ready task reach height water, we will wait until amount of ready task down to low water
 
-set lower water to 400, and height water 1000
+set lower water to 400, height water to 1000
 
 +-------+-----------+----------+
 |       +           +          +
