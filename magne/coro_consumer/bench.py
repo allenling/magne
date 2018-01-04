@@ -8,7 +8,7 @@ import argparse
 import subprocess
 import time
 
-from magne.master import main as magne_main
+from magne.coro_consumer.coro_consumer import main as coro_main
 
 
 counter_key = 'magne_coro_consumer'
@@ -52,8 +52,8 @@ def setup(count):
 
 
 def run_magne(workers):
-    magne_main(workers, 200, 'magne.benchmark.bench_tasks', amqp_url='amqp://guest:guest@localhost:5672//',
-               qos=workers, logger_level="INFO")
+    coro_main(workers, 200, 'magne.benchmark.bench_tasks', amqp_url='amqp://guest:guest@localhost:5672//',
+              qos=workers, logger_level="INFO")
     return
 
 
