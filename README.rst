@@ -163,6 +163,7 @@ qos为0, 单进程的coroutine, dramatiq运行测试的时候默认是8个进程
    2.1 比如上面的coroutine消费者模式, 你的每一个task必须适应于curio, 比如sleep必须是curio.sleep等等, 否则consumer都不会yield, 这样就失去了协程的优势, 
 
    2.2 又比如如果写一个协程http服务器, 那么如果业务的view不能yield的话, 协程服务器并没有什么意义, 因为不yield的话就是卡在一个request上
+
        如果需要业务的view能够yield的话, 必须配套有比如reids, mysql这些异步工具,　然而现在并没有, 现在社区还是处于构建协程调度库(curio, asyncio, trio等等)状态
 
 
