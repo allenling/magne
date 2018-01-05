@@ -286,9 +286,9 @@ class Queen:
         return
 
 
-def main(timeout, task_module, qos, amqp_url='amqp://guest:guest@localhost:5672//', log_level=logging.DEBUG):
+def main(timeout, task_module, qos, amqp_url='amqp://guest:guest@localhost:5672//', log_level=logging.DEBUG, curio_debug=False):
     queen = Queen(timeout, task_module, qos, amqp_url, log_level=log_level)
-    curio.run(queen.start, with_monitor=True)
+    curio.run(queen.start, with_monitor=curio_debug)
     return
 
 
@@ -299,4 +299,4 @@ if __name__ == '__main__':
         log_level_name = sys.argv[1].split('=')[1]
         if log_level_name == 'INFO':
             log_level = logging.INFO
-    main(30, 'magne.coro_consumer.demo_task', 0, log_level=log_level)
+    main(30, 'magne.coro_consumer.demo_task', 0, log_level=log_level, curio_debug=True)

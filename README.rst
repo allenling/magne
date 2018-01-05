@@ -5,11 +5,11 @@ Curio, RabbitMQ, Distributed Task Queue
 
 Python >= 3.6, curio >= 0.8, pika >= 0.11.2
 
-usage
+使用
 ------
 
-1.git clone or download and
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1.git clone或者download, 然后
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: 
 
@@ -17,36 +17,50 @@ usage
     cd magne/magne
 
 
-2. run process worker
+2. 运行进程worker
 ~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block::
 
     python run.py process --help
 
-3. run coroutine worker
+3. 运行coroutine消费者
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block::
 
-    python run.py coroutine
+    python run.py coroutine --help
 
-how it works
+模型
 --------------
 
-bechmark
+1. 进程worker
+~~~~~~~~~~~~~~~~
+
+
+2. coroutine消费者
+~~~~~~~~~~~~~~~~~~~~~
+
+
+测试
 -----------
 
-ubuntu16.04 Intel(R) Core(TM) i5-4250U(4 cores)
+测试环境: Ubuntu16.04 16G Intel(R) Core(TM) i5-4250U(4核)
 
-benchmark reference: **dramatiq** https://github.com/Bogdanp/dramatiq/blob/master/benchmarks/bench.py
+测试参考: **dramatiq** https://github.com/Bogdanp/dramatiq/blob/master/benchmarks/bench.py
 
-benchmark function: latency_bench
+测试延迟函数: latency_bench(随机sleep(n), n不大于10)
 
-drawing library: https://github.com/allenling/draw-docs-table
+下面绘制表格的库: https://github.com/allenling/draw-docs-table
 
-1. process worker, no thread
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+1. 进程模式
+~~~~~~~~~~~~
+
+magne.process_worker
+
+该模式就是孵化出n个子进程, 然后子进程只是执行任务而已
+
+受限于进程数, 一般进程数不大于cpu个数, 所以限制了消费的速率, celery也是这个模式
 
 +-------+--------------+----------+
 |       +              +          +
@@ -58,17 +72,15 @@ drawing library: https://github.com/allenling/draw-docs-table
 |       +              +          +
 +-------+--------------+----------+
 
-2. process worker with threads
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+2. 线程模式
+~~~~~~~~~~~~~
 
-3. coroutine consumer
+3. coroutine消费者
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-qos = 0
+magne.coro_consumer
 
-single process coroutine
-
-dramatiq runs 8 processes
+qos为0, 单进程的coroutine, dramatiq运行测试的时候默认是8个进程
 
 +-------+-----------+----------+
 |       +           +          +
@@ -84,14 +96,14 @@ dramatiq runs 8 processes
 |       +           +          +
 +-------+-----------+----------+
 
-and when there are 1200+ ready tasks in curio(>1500 tasks in rabbitmq), coroutine process would takes almost 100% cpu and hang.
+当spawn太多任务, 达到1200+个的时候, 进程会吃满cpu, 然后挂起了
 
-3.1 lower water and height water
+3.1 设置高低水位
 ++++++++++++++++++++++++++++++++++
 
-when the amount of ready task reach height water, we will wait until amount of ready task down to low water
+当就绪任务(ready task)达到高水位的时候, 等待任务下降到低水位, 再继续spawn协程
 
-set lower water to 400, height water to 1000
+低水位为400, 高水位为1000
 
 +-------+-----------+----------+-----------------+
 |       +           +          +                 +
@@ -107,13 +119,49 @@ set lower water to 400, height water to 1000
 |       +           +          +                 +
 +-------+-----------+----------+-----------------+
 |       +           +          +                 +
-| 10000 + 49.47s    + 408.10s  + 22.91           +
+| 10000 + 49.47s    + 408.10s  + 22.91s          +
 |       +           +          +                 +
 +-------+-----------+----------+-----------------+
 
+3.2 多进程
+++++++++++++
+
++-------+-------------+-------------+-------------+-------------+-------------+
+|       +             +             +             +             +             +
+| tasks + 2个进程     + 3个进程     + 4个进程     + 5个进程     + 6个进程     +
+|       +             +             +             +             +             +
++-------+-------------+-------------+-------------+-------------+-------------+
+|       +             +             +             +             +             +
+| 1000  + 10.55s      + 10.67s      + 10.66s      + 差不多      + 差不多      +
+|       +             +             +             +             +             +
++-------+-------------+-------------+-------------+-------------+-------------+
+|       +             +             +             +             +             +
+| 5000  + 19.00s      + 16.02s      + 16.10s      + 差不多      + 差不多      +
+|       +             +             +             +             +             +
++-------+-------------+-------------+-------------+-------------+-------------+
+|       +             +             +             +             +             +
+| 10000 + 31.26s      + 25.94s      + 21.13s      + 19.03s      + 19.13s      +
+|       +             +             +             +             +             +
++-------+-------------+-------------+-------------+-------------+-------------+
+
+当进程数大于cpu个数的时候, 再多的进程也不会有提升了
 
 
-3.2 multiprocess
-++++++++++++++++++
+小结
+-------
 
+1. 协程更有效率, 因为协程创建开销很低, 也就是一个协程对象, 然后用户态自己调度协程, 调度的开销也很低, 但是相应的, cpu会高挺多的, 这是因为用户代码调度切换协程的关系
+
+2. 现在python的异步io的"难点"在于工具不多:
+
+   2.1 比如上面的coroutine消费者模式, 你的每一个task必须适应于curio, 比如sleep必须是curio.sleep等等, 否则consumer都不会yield, 这样就失去了协程的优势, 
+
+   2.2 又比如如果写一个协程http服务器, 那么如果业务的view不能yield的话, 协程服务器并没有什么意义, 因为不yield的话就是卡在一个request上
+
+       如果需要业务的view能够yield的话, 必须配套有比如reids, mysql这些异步工具,　然而现在并没有, 现在社区还是处于构建协程调度库(curio, asyncio, trio等等)状态
+
+
+3. dramatiq的线程模型是真的快, 而且方便, 不需要有其他的定制(比如magne, 你的task必须适应curio), 是由os来调度~~~
+
+4. celery是多进程的模式, 受限于不能多开进程~~~并且最主要一点, 看代码找问题太麻烦了!!!!!
 

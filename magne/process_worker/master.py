@@ -34,7 +34,6 @@ import curio
 from curio import Queue
 from curio import SignalQueue
 
-import magne
 from magne.process_worker.connection import MagneConnection
 from magne.process_worker.worker_pool import MagneWorkerPool
 from magne.helper import tasks as _tasks

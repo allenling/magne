@@ -62,19 +62,22 @@ def parse_argv():
     parser.add_argument('--count', type=int, help='worker count, default: 100',
                         default=100,
                         )
-    parser.add_argument('--run-setup', type=int, help='any non zero means that just push tasks into rabbitmq, do not run bench',
+    parser.add_argument('--only-setup', type=int, help='any non zero means that just push tasks into rabbitmq, do not run bench',
                         default=0,
                         )
+    parser.add_argument('--workers', type=int, help='workers, default 1',
+                        default=1,
+                        )
     args = parser.parse_args()
-    return args.count, args.run_setup
+    return args.count, args.only_setup, args.workers
 
 
 def main():
     print('pid: %s' % os.getpid())
-    count, run_set_up = parse_argv()
+    count, only_setup, workers = parse_argv()
     print('task count: %s' % (count))
     setup(count)
-    if run_set_up != 0:
+    if only_setup != 0:
         return
     rs = redis.StrictRedis()
     start_time = time.time()
@@ -82,7 +85,10 @@ def main():
     cm = ['env', 'PYTHONPATH=/opt/curio:/opt/magne:/opt/magne/magne', 'python3.6',
           '/opt/magne/magne/coro_consumer/run.py', '--task=magne.coro_consumer.bench_tasks', '--log-level=INFO']
     print(' '.join(cm))
-    proc = subprocess.Popen(cm)
+    procs = []
+    for _ in range(workers):
+        proc = subprocess.Popen(cm)
+        procs.append(proc)
     processed = 0
     while processed < count:
         processed = int(rs.get(counter_key).decode('utf-8'))
@@ -90,8 +96,9 @@ def main():
         time.sleep(0.1)
 
     duration = time.time() - start_time
-    proc.terminate()
-    proc.wait()
+    for proc in procs:
+        proc.terminate()
+        proc.wait()
     print(f"coro_consumer took {duration} seconds to process {count} messages.")
     return
 
