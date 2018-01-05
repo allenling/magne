@@ -1,27 +1,24 @@
 coroutine amqp consumer
 =========================
 
-one child process, one connection
-
-1. qos config
-
-2. warm/cold shutdown
-
-   shutdown makes sure ack accomplishｍent.
-
 TODO: 
 ~~~~~~~~~~
 
-1. reconnect
+1. 重新连接
+
+2. 高低水位可配置
 
 feature:
 ~~~~~~~~~~
 
-1. batch ack, maybe
+1. batch ack
 
 benchmark
 -------------
-pip install -r requirements.txt
 
-python3.6 bench.py
+.. code-block:: 
+
+    pip install -r requirements.txt
+    
+    python3.6 bench.py --help
 

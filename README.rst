@@ -37,6 +37,12 @@ Python >= 3.6, curio >= 0.8, pika >= 0.11.2
 1. 进程worker
 ~~~~~~~~~~~~~~~~
 
+比起celery, 更简单, celery的代码我是真不想看了~~~
+
+分离publisher和consumer的配置, publisher一端可以随便用哪种库来发msg, 这需要保证exchange和msg的格式对就好了~不像celery,
+
+consumer和publisher公用一套代码~~多麻烦
+
 
 2. coroutine消费者
 ~~~~~~~~~~~~~~~~~~~~~

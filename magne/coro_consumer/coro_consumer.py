@@ -1,5 +1,12 @@
 '''
 TODO: detect connection list lost
+
+单进程的协程
+
+amqp的best practice是一个线程一个channel, 但是协程的话, 如果是
+一个协程一个channel的话, 因为协程可以有上千个的, 所以一个connection能有上千个
+channel, 这样也不好吧~~~
+所以这里只用一个channel, 这个channel的消费速度是上千个, ack速度是几百个
 '''
 import logging
 import json
@@ -194,6 +201,9 @@ class SpellsConnection(BaseAsyncAmqpConnection):
             data = frag_data + data
             self.fragment_frame = []
         while data:
+            # 不完整的frame只可能在第一个或者最后一个
+            # 第一个的话, 意味着上一次的最后一个frame也是不完整的
+            # 那么我们把这两个不完整的拼接起来
             try:
                 count, frame_obj = pika.frame.decode_frame(data)
             except Exception as e:

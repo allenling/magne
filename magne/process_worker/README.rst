@@ -1,21 +1,24 @@
 magne process worker
 ======================
 
-1. qos config
+1. 配置oqs
 
 2. warm/cold shutdown
-   
-   shutdown makes sure ack accomplishment.
 
-3. reconnect
+   shutdown能保证已经完成的任务能都ack掉
+   
+
+3. 重新连接
 
 
 
 benchmark
 ------------
 
-pip install -r bench_requirements.txt
+.. code-block:: 
 
-pythone3.6 bench.py
+    pip install -r bench_requirements.txt
+    
+    pythone3.6 bench.py
 
 
