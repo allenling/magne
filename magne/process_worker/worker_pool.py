@@ -82,7 +82,7 @@ class MagneWorker(ProcessWorker):
         return
 
     async def apply(self, func, args, delivery_tag):
-
+        # send and return, do not wait for recv
         msg = (func, args)
         self.func, self.args, self.delivery_tag = func, args, delivery_tag
         try:
@@ -150,6 +150,8 @@ class MagneWorkerPool:
         return
 
     async def apply(self, func_name, args, delivery_tag):
+        # if we do not spawn watch task, and await worker recv,
+        # we would block in recv, and can not recv next amqp msg!
         while not self.idle_workers:
             self.wait_for_idle = True
             # there is no idle worker for ready, just wait
@@ -170,7 +172,7 @@ class MagneWorkerPool:
             return
         self.logger.debug('worker pool apply worker %s: %s %s(%s)' % (w, delivery_tag, func_name, args))
         self.busy_workers[w] = wobj
-        # watch task be set to daemon? is a right idea?
+        # watching task be set to daemon, it is a good idea?
         watch_worker_task = await curio.spawn(self.watch_worker, wobj, daemon=True)
         # save watch task for closing
         self.watch_tasks[wobj.ident] = watch_worker_task

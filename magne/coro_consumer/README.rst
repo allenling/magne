@@ -1,17 +1,26 @@
 coroutine amqp consumer
 =========================
 
+模型
+----------
+
+功能
+--------
+
+1. qos可配置
+
+2. cold/warm shutdown, shutdown能保证尽量ack
+
 TODO: 
-~~~~~~~~~~
+----------
+
+看情况
 
 1. 重新连接
 
 2. 高低水位可配置
 
-feature:
-~~~~~~~~~~
-
-1. batch ack
+3. batch ack
 
 benchmark
 -------------
