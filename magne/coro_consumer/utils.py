@@ -68,27 +68,37 @@ class DummyRedis:
     async def distribute_response(self):
         # daemon=True!
         last_resp = ''
-        while True:
-            data = await self.sock.recv(1024)
-            # last element is empty string
-            dlist = data.split(b'\r\n')
-            if last_resp:
-                dlist[0] = last_resp + dlist[0]
-                last_resp = ''
-            if dlist[-1] != b'':
-                last_resp = dlist[-1]
-            dlist = dlist[:-1]
-            while dlist:
-                rdata = dlist.pop(0)
-                if b'$' in rdata:
-                    continue
-                # int
-                rdata = rdata.decode('utf-8')
-                if rdata[0] == ':':
-                    rdata = int(rdata[1:])
-                ev, ev_seq = await self._evs.get()
-                self._res[ev_seq] = rdata
-                await ev.set()
+        try:
+            while True:
+                tmp_data = None
+                tmp_last = None
+                data = await self.sock.recv(1024)
+                tmp_data = data
+                # last element is empty string
+                if last_resp:
+                    data = last_resp + data
+                    tmp_last = last_resp
+                    last_resp = ''
+                dlist = data.split(b'\r\n')
+                if dlist[-1] != b'':
+                    last_resp = dlist[-1]
+                dlist = dlist[:-1]
+                while dlist:
+                    rdata = dlist.pop(0)
+                    if b'$' in rdata:
+                        continue
+                    # int
+                    rdata = rdata.decode('utf-8')
+                    if rdata[0] == ':':
+                        rdata = int(rdata[1:])
+                    ev, ev_seq = await self._evs.get()
+                    self._res[ev_seq] = rdata
+                    await ev.set()
+        except curio.CancelledError:
+            pass
+        except Exception as e:
+            print('tmp data: %s, tmp last: %s' % (tmp_data, tmp_last))
+            raise e
         return
 
     def encode(self, value):

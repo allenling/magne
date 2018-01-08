@@ -27,7 +27,7 @@ CLIENT_INFO = {'platform': 'Python 3.6.3', 'product': 'coro amqp consumer', 'ver
 
 class LarvaePool:
 
-    def __init__(self, timeout, task_module, log_level=logging.DEBUG, low_water=400, height_water=10000):
+    def __init__(self, timeout, task_module, log_level=logging.DEBUG, low_water=400, height_water=1000000):
         # TODO: detect connection lost, and wait for reconnect(event)
         # ack is the async method/function
         self.ack = None
@@ -67,16 +67,9 @@ class LarvaePool:
                 ack_immediately = True
                 self.logger.error('invalid body frame: %s' % b, exc_info=True)
             # spawn daemon, for ignoring `never joined`, and when closing, we will cancel all!
-            # wrap spawn!!!do not spawn directly!!!
-            broodling_task = await curio.spawn(self.wrap_broodling, channel, devlivery_tag, task, args, ack_immediately)
-            await broodling_task.join()
+            broodling_task = await curio.spawn(self.broodling, channel, devlivery_tag, task, args, ack_immediately, daemon=True)
             self.logger.debug('spawn task %s(%s)' % (task_name, args))
-        return
-
-    async def wrap_broodling(self, channel, devlivery_tag, task, args, ack_immediately=False):
-        # wrap spawn的意义在于减少太多ready的任务!!!
-        broodling_task = await curio.spawn(self.broodling, channel, devlivery_tag, task, args, ack_immediately, daemon=True)
-        self.watching['%s_%s' % (channel, devlivery_tag)] = broodling_task
+            self.watching['%s_%s' % (channel, devlivery_tag)] = broodling_task
         return
 
     async def broodling(self, channel, devlivery_tag, task, args, ack_immediately=False):

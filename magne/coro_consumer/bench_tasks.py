@@ -1,4 +1,5 @@
 import curio
+import time
 import random
 
 from magne.helper import register
@@ -28,8 +29,10 @@ async def magne_latency_bench():
         duration = 3
     else:
         duration = 1
+    start = time.time()
     await curio.sleep(duration)
+    res = time.time() - start
     data = await dummy_redis.send_command('INCR', counter_key)
-    return data
+    return 'got: %s, sleep: %s' % (data, res)
 
 curio.run(get_redis_connection)
