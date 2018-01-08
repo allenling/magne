@@ -33,6 +33,9 @@ recv加锁, 如果recv一次拿到了多个命令返回, 那么当前的coroutin
 
 该任务最好设置为daemon, 因为我们没办法去主动join它(在__del__中join?), 然后curio结束的时候, 此时该任务
 是非daemon, 并且没有被cancel, 没有join的, 所以会报never joined的warning
+
+其实应该用future对象而不是ev_id, ev这样的组合, 因为redis服务一般是一直开着的, 如果ev_id一直自增的话
+就找出大整数的内存一直膨胀, python的整数内存不会返回给os的, 然后就发现整个程序的内存消耗会越来越大
 '''
 from redis.connection import Token, SYM_EMPTY, SYM_STAR, SYM_CRLF, SYM_DOLLAR
 from redis._compat import b as rcb, imap

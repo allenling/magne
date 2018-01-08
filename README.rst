@@ -159,15 +159,14 @@ qos为0, 单进程的coroutine, dramatiq运行测试的时候默认是8个进程
 
 如果我们如果我们修改一下, spawn的时候确保coroutine能开始执行的话, 就绪任务就很少, 但是running任务就很多, 可以突破这个限制~~~
 
-wrap spawn请看magne/coro_consumer
+**wrap spawn的方式请看magne/coro_consumer**
 
-这种模式下, running任务数量都能达到3000-4000+个:
+这种模式下, 高水位设置尽可能大, 直接设置为1w个, running任务数量都能达到3000-4000+个:
 
 1. 测试数量达到1w个, 这时有4000+个running任务, cpu是基本吃满
 
 2. 5000个amqp任务, running的任务最多3000+, cpu则30%-40%左右
 
-**wrap spawn的方式请看magne/coro_consumer里面的readme**
 
 +-------+------------+
 |       +            +
