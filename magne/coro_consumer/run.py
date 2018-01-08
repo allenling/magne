@@ -21,6 +21,9 @@ def main():
     parser.add_argument('--log-level', type=str, help='any level in logging, default: INFO',
                         default='INFO',
                         )
+    parser.add_argument('--curio-debug', type=int, help='curio monitor, default: 0, any greater than 0 will start debug',
+                        default=0,
+                        )
     args = parser.parse_args()
     timeout = args.timeout
     task_module = args.task
@@ -30,7 +33,8 @@ def main():
     if log_level not in logging._nameToLevel:
         raise Exception('invalid log level')
     log_level = logging._nameToLevel[log_level]
-    coro_main(timeout, task_module, qos, amqp_url, log_level)
+    curio_debug = True if args.curio_debug > 0 else False
+    coro_main(timeout, task_module, qos, amqp_url, log_level, curio_debug)
     return
 
 

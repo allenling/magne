@@ -83,7 +83,8 @@ def main():
     start_time = time.time()
     rs.set(counter_key, 0)
     cm = ['env', 'PYTHONPATH=/opt/curio:/opt/magne:/opt/magne/magne', 'python3.6',
-          '/opt/magne/magne/coro_consumer/run.py', '--task=magne.coro_consumer.bench_tasks', '--log-level=INFO']
+          '/opt/magne/magne/coro_consumer/run.py', '--task=magne.coro_consumer.bench_tasks', '--log-level=INFO',
+          '--curio-debug=1']
     print(' '.join(cm))
     procs = []
     for _ in range(workers):
