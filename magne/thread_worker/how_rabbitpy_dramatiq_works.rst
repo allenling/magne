@@ -1,11 +1,8 @@
-rabbitpy和dramatiq线程模式
-================================
-
 两个库如何io, 如何执行task的
 
 
 rabbitpy的例子
-------------------
+==================
 
 rabbitpy主线程会开启一个io线程, io线程去send, recv, recv的时候看是哪个channel, 然后把msg发给对应的子线程~~~所以线程数量=主线程+io线程+N个子线程
 
@@ -35,7 +32,7 @@ rabbitpy主线程会开启一个io线程, io线程去send, recv, recv的时候�
 	consumer_thread.start()
 
 实例化Connection
-~~~~~~~~~~~~~~~~~~~~
+--------------------
 
 .. code-block:: python
 
@@ -52,7 +49,7 @@ rabbitpy主线程会开启一个io线程, io线程去send, recv, recv的时候�
 所以当在子线程里面调用with connection的时候, 已经是建立好了的connection
 
 开启channel
-~~~~~~~~~~~~
+------------
 
 
 .. code-block:: python
@@ -93,7 +90,7 @@ rabbitpy主线程会开启一个io线程, io线程去send, recv, recv的时候�
 所以, 子线程中开启channel也是通过io线程来完成
 
 send/rev
-~~~~~~~~~
+---------
 
 接下来是接收frame和分配到子线程的过程
 
@@ -148,7 +145,7 @@ channel等待frame的到来
             value = self._read_from_queue() # 这一句就是等待之前io线程的write_queue有数据了
 
 ack的过程
-~~~~~~~~~~~~
+------------
 
 ack呢也是把数据发送给io线程, 让它去发送的了
 
@@ -161,7 +158,7 @@ ack呢也是把数据发送给io线程, 让它去发送的了
 
 
 dramatiq例子
----------------
+===============
 
 dramatiq也是一样, 主线程孵化出io线程和逻辑线程, 然后io线程和逻辑线程通过queue交互
 
@@ -178,7 +175,7 @@ dramatiq和rabbitpy差不多, 都是io线程分配msg给逻辑线程, 区别是:
    dramatiq的逻辑线程更像是一个thread pool, N个io线程去把msg发送给M个逻辑线程
 
 consumer线程
-~~~~~~~~~~~~~~~~
+----------------
 
 consumer线程也就是io线程
 
@@ -267,7 +264,7 @@ ConsumerThread类
 
 
 worker线程
-~~~~~~~~~~~~~
+-------------
 
 worker线程是一个thread pool的形式, 接收msg, 然后执行, 不像rabbitpy中, 每一个线程只能执行唯一一个channel的msg
 
@@ -329,6 +326,83 @@ worker线程是一个thread pool的形式, 接收msg, 然后执行, 不像rabbit
             # 发送中断是为了唤醒consumer线程
             self.consumer.interrupt()
 
+处理timeout
+-----------------
+
+dramatiq处理超时有点hack~~~~
+
+.. code-block:: python
+
+    # dramatiq.actor.Actor.__call__
+    def __call__(self, *args, **kwargs):
+        try:
+            self.logger.info("Received args=%r kwargs=%r.", args, kwargs)
+            start = time.perf_counter()
+            # 这里会一直执行
+            return self.fn(*args, **kwargs)
+        finally:
+            delta = time.perf_counter() - start
+            self.logger.info("Completed after %.02fms.", delta * 1000)
+
+这里看起来是self.fn会一直执行直到结束之后才会计算是否超时,
+
+其实监视超时是一个定时器, 然后发现超时的时候通过更改底层C代码中的线程状态来达到引发异常从而终止调度的.
+
+超时处理都是由定时器处理的, 代码在 dramatiq.middleware.time_limit.TimeLimit
+
+
+设置定时器
+~~~~~~~~~~~~~
+
+通过signal.setitimer和signal.SIGALRM设置定时器和超时处理方法
+
+.. code-block:: python
+
+    class TimeLimit(Middleware):
+        def after_process_boot(self, broker):
+            # 这个方法是进程启动的最后一步
+            # 这里signal.setitimer是设置一个定时器, 时间到了之后触发一个SIGALRM信号
+            signal.setitimer(signal.ITIMER_REAL, self.interval / 1000, self.interval / 1000)
+            # 这里定时器时间到了之后, 会发一个SIGALRM的信号, 由self._handle来处理
+            signal.signal(signal.SIGALRM, self._handle)
+    
+
+设置超时异常
+~~~~~~~~~~~~~~
+
+
+调用ctype.pythonapi.PyThreadState_SetAsyncExc设置线程异常
+
+
+.. code-block:: python
+
+    def _handle(self, signum, mask):
+        current_time = time.monotonic()
+        # self.deadlines就是每次thread worker启动的时候都会被加入到这个dict中
+        for thread_id, deadline in self.deadlines.items():
+            # 判断是否超时
+            if deadline and current_time >= deadline:
+                self.logger.warning("Time limit exceeded. Raising exception in worker thread %r.", thread_id)
+                self.deadlines[thread_id] = None
+                # cpython下可以hack设置异常
+                if _current_platform == "CPython":
+                    self._kill_thread_cpython(thread_id)
+                else:  # pragma: no cover
+                    self.logger.critical("Cannot kill threads on platform %r.", _current_platform)
+
+
+    def _kill_thread_cpython(self, thread_id):
+        thread_id = ctypes.c_long(thread_id)
+        exception = ctypes.py_object(TimeLimitExceeded)
+        # 这里使用了ctype.pythonapi这个底层接口
+        # 调用PyThreadState_SetAsyncExc这个C接口来设置异常
+        count = ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, exception)
+        if count == 0:  # pragma: no cover
+            self.logger.critical("Failed to set exception in worker thread.")
+        elif count > 1:  # pragma: no cover
+            self.logger.critical("Exception was set in multiple threads.  Undoing...")
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, ctypes.c_long(0))
+
 
 
 
@@ -347,4 +421,6 @@ worker线程是一个thread pool的形式, 接收msg, 然后执行, 不像rabbit
 产生thread pool, 把msg扔到thread pool去执行~~~~这样更简单
 
 所以最后的做法是跟coro_consumer一样, 只不过coroutine换成了curio中的async thread
+
+超时的做法还是dramatiq的做法比较好
 
