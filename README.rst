@@ -1,91 +1,90 @@
+#####
 magne
-=======
+#####
 
 Curio, RabbitMQ, Distributed Task Queue
 
 Python >= 3.6, curio >= 0.8, pika >= 0.11.2
 
 使用
-------
+====
 
-1.git clone或者download, 然后
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+git clone或者download, 然后
+---------------------------
 
 .. code-block:: 
 
     pip install -r requirements.txt
     cd magne/magne
 
-
-2. 运行进程worker
-~~~~~~~~~~~~~~~~~~~~~~~
+运行进程worker
+--------------
 
 .. code-block::
 
     python run.py process --help
 
-3. 运行coroutine消费者
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+运行coroutine消费者
+-------------------
 
 .. code-block::
 
     python run.py coroutine --help
 
 模型
---------------
+====
+
 
 模型抽象在 `这里 <https://github.com/allenling/magne/blob/master/how_it_works.rst>`_
 
-
-1. 进程worker
-~~~~~~~~~~~~~~~~
+进程worker
+----------
 
 比起celery, 代码和整个结构上更简单, celery的代码我是真不想看了~~~
 
 分离publisher和consumer的配置, publisher一端可以随便用哪种库来发msg, 这需要保证exchange和msg的格式对就好了~不像celery, consumer和publisher公用一套代码~~多麻烦
 
+线程worker
+----------
 
-2. 线程worker
-~~~~~~~~~~~~~~~~~~~~
-
-
-3. coroutine消费者
-~~~~~~~~~~~~~~~~~~~~~
-
+coroutine消费者
+---------------
 
 测试
------------
+====
 
-测试环境: Ubuntu16.04 16G Intel(R) Core(TM) i5-4250U(4核)
 
-测试参考: `dramatiq <https://github.com/Bogdanp/dramatiq/blob/master/benchmarks/bench.py>`_
+1. 测试环境: Ubuntu16.04 16G Intel(R) Core(TM) i5-4250U(4核)
 
-测试延迟函数: latency_bench(随机sleep(n), n不大于10)
+2. 测试参考: `dramatiq <https://github.com/Bogdanp/dramatiq/blob/master/benchmarks/bench.py>`_
 
-绘制表格的 `库 <https://github.com/allenling/draw-docs-table>`_
+3. 测试延迟函数: latency_bench(随机sleep(n), n不大于10)
 
-1. 进程模式
-~~~~~~~~~~~~
+4. 绘制表格的 `库 <https://github.com/allenling/draw-docs-table>`_
+
+进程模式
+--------
+
 
 该模式就是孵化出n个子进程, 然后子进程只是执行任务而已
 
 受限于进程数, 一般进程数不大于cpu个数, 所以限制了消费的速率, celery也是这个模式
 
-+-------+--------------+----------+
-|       +              +          +
-| tasks + celery/magne + dramatiq +
-|       +              +          +
-+-------+--------------+----------+
-|       +              +          +
-| 100   + 45.12s       + 6.52s    +
-|       +              +          +
-+-------+--------------+----------+
++-------+----------------+----------+
+|       +                +          +
+| tasks + celery/process + dramatiq +
+|       +                +          +
++-------+----------------+----------+
+|       +                +          +
+| 100   + 45.12s         + 6.52s    +
+|       +                +          +
++-------+----------------+----------+
 
-2. 线程模式
-~~~~~~~~~~~~~
+线程模式
+--------
 
-3. coroutine消费者
-~~~~~~~~~~~~~~~~~~~~~~~
+coroutine消费者
+---------------
 
 **应该配置高低水位, 因为如果无限制的允许spawn的话, 可能会吃满cpu.为了测试, 高水位设置尽可能高, 设置为100w个**
 
@@ -113,41 +112,64 @@ qos为0, 单进程的coroutine, dramatiq运行测试的时候默认是8个进程
 |       +           +          +                 +
 +-------+-----------+----------+-----------------+
 
-1. coroutine下:
+coroutine下:
+~~~~~~~~~~~~
 
-5k个task, 一直spawn的时候, 的cpu消耗峰值在50%左右, curio的running task峰值为3000-4000个
 
-1w个task的时候, cpu峰值90%以上, curio中的running task峰值4000+
+1. 5k个task, 一直spawn的时候, 的cpu消耗峰值在50%左右, curio的running task峰值为3000-4000个
 
-2. dramatiq-gevent下:
+2. 1w个task的时候, cpu峰值90%以上, curio中的running task峰值4000+
 
-5k个task, 每一个worker的cpu峰值消耗都在15%左右
+dramatiq-gevent下:
+~~~~~~~~~~~~~~~~~~
 
-1w个task, 峰值在20%左右
+
+1. 5k个task, 每一个worker的cpu峰值消耗都在15%左右
+
+2. 1w个task, 峰值在20%左右
 
 小结
--------
+====
 
-0. 这里基本是纯比速度, 而速度取决于消费者的数量, 协程最多, 想开多少个就开多少个, 线程其次, 进程最少.
+速度
+----
 
-1. 协程更有效率, 因为协程创建开销很低, 也就是一个协程对象, 然后用户态自己调度协程, 调度的开销也很低, 但是相应的, cpu会高挺多的.
 
-   这是因为用户代码频繁调度切换协程的关系,导致进程一直处于运行状态
+这里速度是特定函数下的测试, 并不代表实际使用的情况
 
-2. 现在python的异步io的"难点"在于工具不多:
+队列的消费的速率取决于消费者的数量, 协程最多, 想开多少个就开多少个, 线程其次, 进程最少.
 
-2.1 比如上面的coroutine消费者模式, 你的每一个task必须适应于curio, 比如sleep必须是curio.sleep等等, 否则consumer都不会yield, 这样就失去了协程的优势. 
 
-2.2 又比如如果写一个协程http服务器, 那么如果业务的view不能yield的话, 协程服务器并没有什么意义
+协程更有效率
+------------
 
-    因为不yield的话就是卡在一个request上. 如果需要业务的view能够yield的话, 必须配套有比如reids, mysql这些工具.
+因为协程创建开销很低, 也就是一个协程对象, 然后用户态自己调度协程, 调度的开销也很低, 但是相应的, cpu会高挺多的.
 
-    但是现在并没有很多配套的工具, 现在社区还是处于构建协程调度库(curio, asyncio, trio等等)状态.
+cpu高是因为用户代码频繁调度切换协程的关系,导致进程一直处于运行状态.
 
-3. dramatiq的线程模型是真的快, 而且方便, 不需要有其他的定制(比如你的task必须适应curio), 是由os来调度~~加上gevent之后, 那是更快了.
-   所以线程模式是目前快和方便的折中.
+正因为协程特点是spawn起来非常便宜, 使用协程就是要发挥spawn的特点, 更合适io密集(甚至可以说是只有io)的场景, 比如你可以spawn很多协程去监视一些fd超时, 比如分发请求什么的等等~~
 
-4. celery是多进程的模式, 受限于不能多开进程, 限制了消费者的数量~~~但是进程模式对于处理一些计算密集型任务比较好, 实现也比较简单.
+现在python的异步io的"难点"在于工具不多
+--------------------------------------
 
-5. 协程特点是spawn起来非常便宜, 使用协程就是要发挥spawn的特点, 更合适io密集(甚至可以说是只有io)的场景, 比如你可以spawn很多协程去监视一些fd超时, 比如分发请求什么的等等~~
+比如上面的coroutine消费者模式, 你的每一个task必须适应于curio, 比如sleep必须是curio.sleep等等, 否则consumer都不会yield, 这样就失去了协程的优势. 
+
+又比如如果写一个协程http服务器, 那么如果业务的view不能yield的话, 协程服务器并没有什么意义
+
+因为不yield的话就是卡在一个request上. 如果需要业务的view能够yield的话, 必须配套有比如reids, mysql这些工具.
+
+但是现在并没有很多配套的工具, 现在社区还是处于构建协程调度库(curio, asyncio, trio等等)状态.
+
+dramatiq线程模型
+------------------
+
+dramatiq是真的快, 而且方便, 不需要有其他的定制(比如你的task必须适应curio), 是由os来调度~~加上gevent之后, 那是更快了.
+
+所以线程模式是目前快和方便的折中.
+
+celery多进程的模式
+--------------------
+
+受限于不能多开进程, 限制了消费者的数量~~~但是进程模式对于处理一些计算密集型任务比较好, 实现也比较简单.
+
 
