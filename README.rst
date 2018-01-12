@@ -125,9 +125,9 @@ qos为0, 单进程的coroutine, dramatiq运行测试的时候默认是8个进程
 
 * coroutine下:
 
-  1. 5k个task, 一直spawn的时候, 的cpu消耗峰值在50%左右, curio的running task峰值为3000-4000个
+  1. 5k个task, **一直spawn(3000+任务)的时候** 的过程中, cpu消耗峰值在50%左右
   
-  2. 1w个task的时候, cpu峰值90%以上, curio中的running task峰值4000+
+  2. 1w个task的时候, **一直spawn(7000+任务)的时候**, cpu峰值90%以上
 
 * dramatiq-gevent下:
 

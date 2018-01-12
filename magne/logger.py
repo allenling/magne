@@ -3,9 +3,11 @@ import logging
 
 class TripleCLogger:
 
-    def __init__(self, level=logging.INFO):
+    def __init__(self, cms=['logger', 'worker', 'connection', 'master'], level=logging.INFO):
         '''
-        logger implemented by closure and property
+        利用闭包和property实现的一个logger, 初始化组件之后, 直接.xxx_logger, 就会加上xxx的大写这个前缀
+        比如: logger.worker_logger, 打印的是会加上WORKER前缀, worker是默认组件
+        logger = TripleCLogger(['xxx']), logger.xxx_logger会打印出XXX前缀
 
         In [1]: logger = TripleCLogger()
 
@@ -31,7 +33,7 @@ class TripleCLogger:
         logger.setLevel(self.level)
         self._logger = logger
         self.component_prefix = None
-        self._components = ['logger', 'worker', 'connection', 'master']
+        self._components = cms
         for c in self._components:
             self._add_component_logger(c)
         self.set_component_prefix(self._components[0])
