@@ -1,20 +1,23 @@
+#######################
 coroutine amqp consumer
-=========================
+#######################
 
 模型
-----------
+====
 
 
 
 功能
---------
+====
+
 
 1. qos可配置
 
 2. cold/warm shutdown, shutdown能保证尽量ack
 
-TODO: 
-----------
+TODO
+====
+
 
 看情况
 
@@ -25,7 +28,7 @@ TODO:
 3. batch ack
 
 benchmark
--------------
+=========
 
 .. code-block:: 
 

@@ -3,7 +3,7 @@ import time
 import random
 
 from magne.helper import register
-from magne.coro_consumer.utils import DummyRedis
+from magne.coro_consumer.dumy_redis import DummyRedis
 
 dummy_redis = None
 

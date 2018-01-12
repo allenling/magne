@@ -1,10 +1,10 @@
-两个库如何io, 如何执行task的
+########################################
+rabbitpy和dramatiq如何io, 如何执行task的
+########################################
 
 
 rabbitpy的例子
 ==================
-
-rabbitpy主线程会开启一个io线程, io线程去send, recv, recv的时候看是哪个channel, 然后把msg发给对应的子线程~~~所以线程数量=主线程+io线程+N个子线程
 
 实例代码: https://rabbitpy.readthedocs.io/en/latest/threads.html
 
@@ -13,7 +13,9 @@ rabbitpy主线程会开启一个io线程, io线程去send, recv, recv的时候�
 
     def consumer(connection):
         received = 0
+        # 从指定的channel中拿到数据
         with connection.channel() as channel:
+            # 从指定的queue中拿到数据
             for message in rabbitpy.Queue(channel, QUEUE).consume_messages():
                 print(message.body)
                 message.ack()
@@ -24,12 +26,12 @@ rabbitpy主线程会开启一个io线程, io线程去send, recv, recv的时候�
                     break
 
     def main():
-        这里当实例化Connection的时候, 已经开启一个io线程去建立连接了
+        # 这里当实例化Connection的时候, 已经开启一个io线程去建立连接了
         with rabbitpy.Connection() as connection:
-	    kwargs = {'connection': connection}
+            kwargs = {'connection': connection}
         # 开启子线程
         consumer_thread = threading.Thread(target=consumer, kwargs=kwargs)
-	consumer_thread.start()
+        consumer_thread.start()
 
 实例化Connection
 --------------------
@@ -46,7 +48,7 @@ rabbitpy主线程会开启一个io线程, io线程去send, recv, recv的时候�
             self._io.daemon = True
             self._io.start()
 
-所以当在子线程里面调用with connection的时候, 已经是建立好了的connection
+所以当在实例化connection对象的时候, 已经去建立好了的connection
 
 开启channel
 ------------
@@ -59,12 +61,12 @@ rabbitpy主线程会开启一个io线程, io线程去send, recv, recv的时候�
         def channel(self, blocking_read=False):
 
             with self._channel_lock:
-	        # 获取channel的id
+                # 获取channel的id
                 channel_id = self._get_next_channel_id()
-		# 这个channel_frames就是channel的_read_queue
-		# channel实例化的时候第五个参数就是了
+                # 这个channel_frames就是channel的_read_queue
+                # channel实例化的时候第五个参数就是了
                 channel_frames = queue.Queue()
-		# 这里创建channel
+                # 这里创建channel
                 self._channels[channel_id] = channel.Channel(channel_id, self.capabilities,
                                                              self._events,
                                                              self._exceptions,
@@ -74,16 +76,14 @@ rabbitpy主线程会开启一个io线程, io线程去send, recv, recv的时候�
                                                              self._io.write_trigger,
                                                              self,
                                                              blocking_read)
-	        # 这里的_add_channel_to_io就是IO._channels[int(channel)] = channel, write_queue
-		# 这里的write_queue是io的写queue, 对应来说就是channel的_read_queue, 也就是channel_frame
-		# channel被保存到io线程内的字典而已
-
+                # 这里的_add_channel_to_io就是IO._channels[int(channel)] = channel, write_queue
+                # 这里的write_queue是io的写queue, 对应来说就是channel的_read_queue, 也就是channel_frame
+                # channel被保存到io线程内的字典而已
                 self._add_channel_to_io(self._channels[channel_id], channel_frames)
-
-		# 这里的open就是构建channel.open的frame, 然后通过write_trigger
-		# 来让io线程去发送frame, write_trigger就是一个socket, 对这个socket发送一个字符, io线程收到提醒就发送
-		# 缓存区(self._write_queue)里面的数据了
-
+                
+                # 这里的open就是构建channel.open的frame, 然后通过write_trigger
+                # 来让io线程去发送frame, write_trigger就是一个socket, 对这个socket发送一个字符, io线程收到提醒就发送
+                # 缓存区(self._write_queue)里面的数据了
                 self._channels[channel_id].open()
                 return self._channels[channel_id]
 
@@ -121,7 +121,7 @@ send/rev
                 self._add_frame_to_read_queue(value[0], value[1]) 
 
         def _add_frame_to_read_queue(self, channel_id, frame_value):
-            self._channels[channel_id][1].put(frame_value) # channel初始化的是会把自己和自己的write_queu注册
+            self._channels[channel_id][1].put(frame_value) # channel初始化的时候把自己和自己的write_queu注册
 
 然后呢, channel如何拿到frame? 
 
@@ -172,7 +172,30 @@ dramatiq和rabbitpy差不多, 都是io线程分配msg给逻辑线程, 区别是:
 
 2. dramatiq是有多少个queue就有多少个channel, 每个channel对应一个queue对应一个io线程, io线程分配给逻辑线程.
 
-   dramatiq的逻辑线程更像是一个thread pool, N个io线程去把msg发送给M个逻辑线程
+   **dramatiq的逻辑线程更像是一个thread pool, N个io线程去把msg发送给M个逻辑线程**, 并且worker和io线程都是daemon的
+
+3. 一个queue一个channel一个connection, 所以连接可能会很多
+
+下面是一些日志, dramatiq启动1个进程worker, 每个worker进程8个thread, 三个queue: sleep_limit, double_sleep_limit, third_sleep_limit, amqp显示有6个连接:
+
+.. code-block:: 
+
+        [2018-01-11 17:25:47,407] [PID 19508] [MainThread] [dramatiq.MainProcess] [INFO] Dramatiq '0.16.0' is booting up.
+        [2018-01-11 17:25:47,436] [PID 19531] [Thread-2] [dramatiq.worker.ConsumerThread(double_sleep_limit)] [INFO] -----------_ConsumerThread 139718440253184...double_sleep_limit
+        [2018-01-11 17:25:47,437] [PID 19531] [Thread-3] [dramatiq.worker.ConsumerThread(sleep_limit)] [INFO] -----------_ConsumerThread 139718431860480...sleep_limit
+        [2018-01-11 17:25:47,438] [PID 19531] [Thread-4] [dramatiq.worker.ConsumerThread(third_sleep_limit)] [INFO] -----------_ConsumerThread 139718423467776...third_sleep_limit
+        [2018-01-11 17:25:47,439] [PID 19531] [Thread-5] [dramatiq.worker.ConsumerThread(sleep_limit.DQ)] [INFO] -----------_ConsumerThread 139718415075072...sleep_limit.DQ
+        [2018-01-11 17:25:47,443] [PID 19531] [Thread-6] [dramatiq.worker.ConsumerThread(double_sleep_limit.DQ)] [INFO] -----------_ConsumerThread 139718406420224...double_sleep_limit.DQ
+        [2018-01-11 17:25:47,450] [PID 19531] [Thread-7] [dramatiq.worker.ConsumerThread(third_sleep_limit.DQ)] [INFO] -----------_ConsumerThread 139718398027520...third_sleep_limit.DQ
+        [2018-01-11 17:25:47,455] [PID 19531] [Thread-8] [dramatiq.worker.WorkerThread] [INFO] ++++++++++++++=_WorkerThread 139718389634816
+        [2018-01-11 17:25:47,458] [PID 19531] [Thread-9] [dramatiq.worker.WorkerThread] [INFO] ++++++++++++++=_WorkerThread 139717903382272
+        [2018-01-11 17:25:47,458] [PID 19531] [Thread-10] [dramatiq.worker.WorkerThread] [INFO] ++++++++++++++=_WorkerThread 139717894989568
+        [2018-01-11 17:25:47,473] [PID 19531] [Thread-11] [dramatiq.worker.WorkerThread] [INFO] ++++++++++++++=_WorkerThread 139717886596864
+        [2018-01-11 17:25:47,480] [PID 19531] [Thread-12] [dramatiq.worker.WorkerThread] [INFO] ++++++++++++++=_WorkerThread 139717878204160
+        [2018-01-11 17:25:47,483] [PID 19531] [Thread-13] [dramatiq.worker.WorkerThread] [INFO] ++++++++++++++=_WorkerThread 139717869811456
+        [2018-01-11 17:25:47,484] [PID 19531] [Thread-14] [dramatiq.worker.WorkerThread] [INFO] ++++++++++++++=_WorkerThread 139717861418752
+        [2018-01-11 17:25:47,484] [PID 19531] [Thread-15] [dramatiq.worker.WorkerThread] [INFO] ++++++++++++++=_WorkerThread 139717853026048
+        [2018-01-11 17:25:47,484] [PID 19531] [MainThread] [dramatiq.WorkerProcess(0)] [INFO] Worker process is ready for action.
 
 consumer线程
 ----------------
@@ -184,7 +207,7 @@ consumer线程也就是io线程
 
     # dramatiq.worker.Worker._add_consumer
     class Worker:
-        # 这里_add_consumer传入的参数是queue_name, 说明一个queue一个消费线程
+        # 这里_add_consumer传入的参数是queue_name, 说明一个queue一个消费(io)线程
         def _add_consumer(self, queue_name, *, delay=False):
             if queue_name in self.consumers:
                 return
@@ -208,7 +231,8 @@ ConsumerThread类
                 self.logger.debug("Running consumer thread...")
                 self.running = True
                 # 这里self.consumer是broker的consume迭代器
-                # 基本上作用就是返回msg了, 细节不用管
+                # 基本上作用就是返回msg了
+                # 这里使用的是pika的blocking connection
                 self.consumer = self.broker.consume(
                     queue_name=self.queue_name,
                     prefetch=self.prefetch,
@@ -268,7 +292,8 @@ worker线程
 
 worker线程是一个thread pool的形式, 接收msg, 然后执行, 不像rabbitpy中, 每一个线程只能执行唯一一个channel的msg
 
-**执行msg**
+执行msg
+~~~~~~~~~
 
 .. code-block:: python
 
@@ -314,7 +339,8 @@ worker线程是一个thread pool的形式, 接收msg, 然后执行, 不像rabbit
                 self.consumers[message.queue_name].post_process_message(message)
                 self.work_queue.task_done()
 
-**ack过程**
+ack
+~~~~~
 
 
 .. code-block:: python
@@ -346,7 +372,7 @@ dramatiq处理超时有点hack~~~~
 
 这里看起来是self.fn会一直执行直到结束之后才会计算是否超时,
 
-其实监视超时是一个定时器, 然后发现超时的时候通过更改底层C代码中的线程状态来达到引发异常从而终止调度的.
+**其实监视超时是一个定时器, 然后发现超时的时候通过更改底层C代码中的线程状态来达到引发异常从而终止调度的.**
 
 超时处理都是由定时器处理的, 代码在 dramatiq.middleware.time_limit.TimeLimit
 
@@ -408,7 +434,7 @@ dramatiq处理超时有点hack~~~~
 
 
 小结
-----------
+==========
 
 所以所谓的一个线程一个channel就是每一个线程负责消费对应channel的数据, 然后所有的send/recv都由io线程来执行, recv的时候通过queue来唤醒对应的线程.
 
