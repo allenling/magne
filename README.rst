@@ -64,6 +64,8 @@ coroutine消费者
 
 实现在 `这里 <https://github.com/allenling/magne/tree/master/magne/coro_consumer>`_
 
+关于python `asynchronous-io <https://github.com/allenling/LingsKeep/blob/master/python_asynchronous_api.rst>`_
+
 spawn协程去执行task, 注意的是, task必须是curio定制的, 比如sleep必须是curio.sleep
 
 测试
