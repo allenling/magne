@@ -8,10 +8,8 @@ import argparse
 import subprocess
 import time
 
-from magne.coro_consumer.coro_consumer import main as coro_main
 
-
-counter_key = 'magne_coro_consumer'
+counter_key = "magne-thread-bench-counter"
 
 
 routing_key = exchange_name = queue_name = 'magne_latency_bench'.upper()
@@ -45,14 +43,13 @@ def en_queue(n):
 
 
 def setup(count):
-    print('benchmark magne coro_consumer...')
     en_queue(count)
     print('%s tasks in rabbitmq' % count)
     return
 
 
 def parse_argv():
-    parser = argparse.ArgumentParser(prog='magne-bench', description='benchmark magne, reference: dramatiq.benchmarks.bench')
+    parser = argparse.ArgumentParser(prog='magne-thread-bench', description='benchmark magne thread worker, reference: dramatiq.benchmarks.bench')
     parser.add_argument('--count', type=int, help='worker count, default: 100',
                         default=100,
                         )
@@ -67,7 +64,7 @@ def parse_argv():
 
 
 def main():
-    print('pid: %s' % os.getpid())
+    print('pid: %s benchmark magne thread worker...' % os.getpid())
     count, only_setup, workers = parse_argv()
     print('task count: %s' % (count))
     setup(count)
@@ -79,11 +76,11 @@ def main():
     workers = 1 if workers <= 0 else workers
     if workers > 1:
         cm = ['env', 'PYTHONPATH=/opt/curio:/opt/magne:/opt/magne/magne', 'python3.6',
-              '/opt/magne/magne/coro_consumer/run.py', '--task=magne.coro_consumer.bench_tasks', '--log-level=INFO',
+              '/opt/magne/magne/thread_worker/run.py', '--task=magne.thread_worker.bench_task', '--log-level=INFO',
               '--curio-debug=0']
     else:
         cm = ['env', 'PYTHONPATH=/opt/curio:/opt/magne:/opt/magne/magne', 'python3.6',
-              '/opt/magne/magne/coro_consumer/run.py', '--task=magne.coro_consumer.bench_tasks', '--log-level=INFO',
+              '/opt/magne/magne/thread_worker/run.py', '--task=magne.thread_worker.bench_task', '--log-level=INFO',
               '--curio-debug=1']
     print(' '.join(cm))
     procs = []
@@ -100,7 +97,7 @@ def main():
     for proc in procs:
         proc.terminate()
         proc.wait()
-    print(f"coro_consumer took {duration} seconds to process {count} messages.")
+    print(f"thread worker took {duration} seconds to process {count} messages.")
     return
 
 

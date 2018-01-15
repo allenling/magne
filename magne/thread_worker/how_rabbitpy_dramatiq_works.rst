@@ -430,6 +430,14 @@ dramatiq处理超时有点hack~~~~
             ctypes.pythonapi.PyThreadState_SetAsyncExc(thread_id, ctypes.c_long(0))
 
 
+* 但是有个问题, 就算调用PyThreadState_SetAsyncExc, 也不会取消掉系统调用. 
+
+比如time.sleep, 或者socket.recv, 就算你添加了异常exc, 但是由于线程已经处于等待中断状态(放在os的休眠队列中)
+
+那么未被中断唤醒之前线程是不会被调度的, 那么这个exc在python代码也不会被raise, 所以就出现了为线程添加了exc异常, 但是由于阻塞在系统调用, 在系统调用返回之前是catch不到这样异常的,
+
+也就是说你超时10s, 然后你函数执行time.sleep(30), 那么这个异常依然是在30s的时候才会被catch到, 因为此时time.sleep才结束, 线程才会被os调度, 然后解释器发现有异常, 才会raise异常
+
 
 
 

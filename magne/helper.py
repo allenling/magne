@@ -55,6 +55,7 @@ class BaseAsyncAmqpConnection:
     MAX_DATA_SIZE = 131072
     logger_name = 'Magne-AsyncConnection'
     client_info = CLIENT_INFO
+    qos_global = True
 
     def __init__(self, queues, amqp_url, qos, log_level=logging.DEBUG):
         self.queues = queues
@@ -179,8 +180,8 @@ class BaseAsyncAmqpConnection:
         await self.assert_recv_method(pika.spec.Queue.BindOk)
         return
 
-    async def update_qos(self, channel_number, qos, global_=True):
-        qos_obj = pika.spec.Basic.Qos(prefetch_count=qos, global_=global_)
+    async def update_qos(self, channel_number, qos):
+        qos_obj = pika.spec.Basic.Qos(prefetch_count=qos, global_=self.qos_global)
         frame_value = pika.frame.Method(channel_number, qos_obj)
         await self.sock.sendall(frame_value.marshal())
         await self.assert_recv_method(pika.spec.Basic.QosOk)

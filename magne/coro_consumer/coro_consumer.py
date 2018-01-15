@@ -1,12 +1,5 @@
 '''
 TODO: detect connection list lost
-
-单进程的协程
-
-amqp的best practice是一个线程一个channel, 但是协程的话, 如果是
-一个协程一个channel的话, 因为协程可以有上千个的, 所以一个connection能有上千个
-channel, 这样也不好吧~~~
-所以这里只用一个channel, 这个channel的消费速度是上千个, ack速度是几百个
 '''
 import logging
 import json

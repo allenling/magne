@@ -35,10 +35,14 @@ git clone或者download, 然后
 ====
 
 
-模型抽象在 `这里 <https://github.com/allenling/magne/blob/master/how_it_works.rst>`_
+整体抽象在 `这里 <https://github.com/allenling/magne/blob/master/how_it_works.rst>`_
 
 进程worker
 ----------
+
+创建进程去执行task
+
+实现在 `这里 <https://github.com/allenling/magne/tree/master/magne/process_worker>`_
 
 比起celery, 代码和整个结构上更简单, celery的代码我是真不想看了~~~
 
@@ -47,8 +51,20 @@ git clone或者download, 然后
 线程worker
 ----------
 
+每个worker进程创建多个线程去执行task
+
+实现在 `这里 <https://github.com/allenling/magne/tree/master/magne/thread_worker>`_
+
+`threading.Thread的C实现 <https://github.com/allenling/LingsKeep/blob/master/python_thread.rst>`_
+
+`python thread的同步对象实现(C) <https://github.com/allenling/LingsKeep/blob/master/python_thread_sync_primitive.rst>`_
+
 coroutine消费者
 ---------------
+
+实现在 `这里 <https://github.com/allenling/magne/tree/master/magne/coro_consumer>`_
+
+spawn协程去执行task, 注意的是, task必须是curio定制的, 比如sleep必须是curio.sleep
 
 测试
 ====
@@ -66,7 +82,7 @@ coroutine消费者
 --------
 
 
-该模式就是孵化出n个子进程, 然后子进程只是执行任务而已
+该模式就是主线程获取rabbitmq的数据, 然后创建出n个子进程, 然后子进程只是执行任务而已, 子进程把结果发给主线程, 然后主线程去ack.
 
 受限于进程数, 一般进程数不大于cpu个数, 所以限制了消费的速率, celery也是这个模式
 
@@ -82,6 +98,29 @@ coroutine消费者
 
 线程模式
 --------
+
++-------+---------------+----------+
+|       +               +          +
+| tasks + thread worker + dramatiq +
+|       +               +          +
++-------+---------------+----------+
+|       +               +          +
+| 100   + 9.93s         + 6.53s    +
+|       +               +          +
++-------+---------------+----------+
+|       +               +          +
+| 1000  + 48.05s        + 39.56s   +
+|       +               +          +
++-------+---------------+----------+
+
+* 100个task的时候dramatiq始终没有测出sleep(10), 我甚至怀疑它作弊了~~~所以100个task的时候线程模式也是去掉sleep(10)来测试.
+
+* 两者的ack速率都在20/s-30/s之间, dramatiq的峰值达30/s, 但是总体都在27, 而线程模型峰值达到27, 但是总体都在25左右.
+
+* 关于queue, dramatiq是使用内置的queue, 而线程模式是使用curio的queue, 所以交互的时候多了一步curio的调用.
+
+* 关于超时的话, dramatiq是用signal.setitimer来设定定时器, 而线程模式是使用协程来监视超时, 所以在处理任务的时候多了一步和curio的交互.
+
 
 coroutine消费者
 ---------------
@@ -133,7 +172,7 @@ qos为0, 单进程的coroutine, dramatiq运行测试的时候默认是8个进程
 
   1. 5k个task, 每一个worker的cpu峰值消耗都在15%左右
   
-  2. 1w个task, 峰值在20%左右
+  2. 1w个task, 每一个worker的峰值在20%左右
 
 小结
 ====
@@ -154,7 +193,9 @@ qos为0, 单进程的coroutine, dramatiq运行测试的时候默认是8个进程
 
 cpu高是因为用户代码频繁调度切换协程的关系,导致进程一直处于运行状态.
 
-正因为协程特点是spawn起来非常便宜, 使用协程就是要发挥spawn的特点, 更合适io密集(甚至可以说是只有io)的场景, 比如你可以spawn很多协程去监视一些fd超时, 比如分发请求什么的等等~~
+正因为协程特点是spawn起来非常便宜, 使用协程就是要发挥spawn的特点, 更合适io密集(**甚至可以说是只有io**)的场景, 比如你可以spawn很多协程去监视一些fd超时, 比如分发请求什么的等等~~
+
+由于协程序是单进程的单线程的(一般), 那么任何阻塞代码(阻塞io或者计算密集任务)都会导致其他协程停止执行, 所以要小心.
 
 现在python的异步io的"难点"在于工具不多
 --------------------------------------
@@ -170,13 +211,15 @@ cpu高是因为用户代码频繁调度切换协程的关系,导致进程一直�
 dramatiq线程模型
 ------------------
 
-dramatiq是真的快, 而且方便, 不需要有其他的定制(比如你的task必须适应curio), 是由os来调度~~加上gevent之后, 那是更快了.
+dramatiq和celery的区别就是一个是线程执行task, 一个是进程执行task, 并且dramatiq的worker进程会开amqp连接, 主进程不会建立连接, 所以连接数比celery多.
 
-所以线程模式是目前快和方便的折中.
+dramatiq比较快, 并且方便, 不需要有其他的定制(比如你的task必须适应curio), 是由os来调度~~加上gevent之后, 那是更快了.
+
+线程模式是目前快和方便的折中.
 
 celery多进程的模式
 --------------------
 
-受限于不能多开进程, 限制了消费者的数量~~~但是进程模式对于处理一些计算密集型任务比较好, 实现也比较简单.
+受限于worker进程没有开线程处理task, 一个worker进程主能处理一个task, 限制了消费者的数量~~~但是进程模式对于处理一些计算密集型任务比较好, 实现也比较简单.
 
 

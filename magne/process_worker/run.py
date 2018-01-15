@@ -9,7 +9,7 @@ from magne.process_worker.master import main as magne_main
 def get_parser():
     cpu_count = os.cpu_count()
     parser = argparse.ArgumentParser(prog='magne process', description='magne process worker')
-    parser.add_argument('--task', type=str, help='task module path, default: magne.demo_task', default='magne.process_worker.demo_task')
+    parser.add_argument('--task', type=str, help='task module path, default: magne.process_worker.demo_task', default='magne.process_worker.demo_task')
     parser.add_argument('--amqp-url', type=str, help='amqp address, default: amqp://guest:guest@localhost:5672//',
                         default='amqp://guest:guest@localhost:5672//',
                         )

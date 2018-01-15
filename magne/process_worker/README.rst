@@ -5,6 +5,11 @@ magne process worker
 模型
 ====
 
+参考celery, 主进程负责io和分发task给worker, worker执行任务, 然后把结果发给主进程.
+
+
+celery中, worker并不会去开启连接
+
 
 功能
 ====
