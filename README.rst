@@ -6,6 +6,12 @@ Curio, RabbitMQ, Distributed Task Queue
 
 Python >= 3.6, curio >= 0.8, pika >= 0.11.2
 
+
+参考celery, dramatiq开发的分发任务应用, 并且加入了协程worker. 用curio重写跟网络有关的部分, 包括组件之间的数据交互.
+
+根据worker的不同, 分为进程模式, 线程模式和协程模式.
+
+
 使用
 ====
 
@@ -34,7 +40,6 @@ git clone或者download, 然后
 模型
 ====
 
-
 整体抽象在 `这里 <https://github.com/allenling/magne/blob/master/how_it_works.rst>`_
 
 进程worker
@@ -55,16 +60,16 @@ git clone或者download, 然后
 
 实现在 `这里 <https://github.com/allenling/magne/tree/master/magne/thread_worker>`_
 
-`threading.Thread的C实现 <https://github.com/allenling/LingsKeep/blob/master/python_thread.rst>`_
+`threading.Thread的C实现 <https://github.com/allenling/LingsKeep/blob/master/python_source_code/python_thread.rst>`_
 
-`python thread的同步对象实现(C) <https://github.com/allenling/LingsKeep/blob/master/python_thread_sync_primitive.rst>`_
+`python thread的同步对象实现(C) <https://github.com/allenling/LingsKeep/blob/master/python_source_code/python_thread_sync_primitive.rst>`_
 
 coroutine消费者
 ---------------
 
 实现在 `这里 <https://github.com/allenling/magne/tree/master/magne/coro_consumer>`_
 
-关于python `asynchronous-io <https://github.com/allenling/LingsKeep/blob/master/python_asynchronous_api.rst>`_
+关于python `asynchronous-io <https://github.com/allenling/LingsKeep/blob/master/python_source_code/python_asynchronous_api.rst>`_
 
 spawn协程去执行task, 注意的是, task必须是curio定制的, 比如sleep必须是curio.sleep
 
