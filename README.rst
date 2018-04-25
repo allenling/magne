@@ -37,6 +37,21 @@ git clone或者download, 然后
 
     python run.py coroutine --help
 
+   
+TODO
+=======
+
+当restart/reload的时候
+
+1. 进程模式的worker的管理参考gunicorn, 相对于强杀, 应该是让worker自己退出, 阻塞的话应该由用户去处理
+
+2. 那么线程worker可以让worker自行退出, 对比进程worker总判断父进程的pid, 以及判断self.alive, 线程worker可以
+   
+   设置daemon=True, 主线程更新worker线程的alive变量
+
+3. 但是协程worker的管理不能让worker自己退出, 因为协程序是进程的一个函数, 只能超时强杀, 有更好的方法吗
+
+
 模型
 ====
 
