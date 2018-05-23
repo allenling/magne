@@ -157,6 +157,50 @@ ack呢也是把数据发送给io线程, 让它去发送的了
         self.channel.write_frame(basic_ack) 
 
 
+图示
+=======
+
+.. code-block:: python
+
+    '''
+    
+    1. **一个io线程**, 负责send/recv, send/recv分别是不同的queue
+    
+    2. worker是要指定channel的, 所有io线程会把对应的channel的frame
+    
+       发送给不同的worker
+    
+    3. 不同的channel, 不同的queue, io线程负责判断msg中的channel, 发送到不同的channel queue
+    
+    4. worker会在channel的queue中监听
+    
+    5. io线程中保存了所有的channel和对应的queue, self.channels = {'channel1': 'queue1', ...}
+    
+    6. 多个worker通过写入一个write_queue, 然后io线程监听write_queue去发送ack
+    
+    
+    一般消息:
+    
+    worker1 <---- channel1_queue  <----- 
+    
+    worker2 <---- channel2_queue  <-----     <--根据channel分发到不同的queue-- io_thread  <-----  connection
+    
+    worker3 <---- channel3_queue  <-----
+    
+    
+    发送ack:
+    
+    worker1 --->
+    
+    worker2 --->    ---> write_queue --->  io_thread ---> connection
+    
+    worker3 --->
+    
+    
+    '''
+
+
+
 dramatiq例子
 ===============
 
@@ -196,6 +240,59 @@ dramatiq和rabbitpy差不多, 都是io线程分配msg给逻辑线程, 区别是:
         [2018-01-11 17:25:47,484] [PID 19531] [Thread-14] [dramatiq.worker.WorkerThread] [INFO] ++++++++++++++=_WorkerThread 139717861418752
         [2018-01-11 17:25:47,484] [PID 19531] [Thread-15] [dramatiq.worker.WorkerThread] [INFO] ++++++++++++++=_WorkerThread 139717853026048
         [2018-01-11 17:25:47,484] [PID 19531] [MainThread] [dramatiq.WorkerProcess(0)] [INFO] Worker process is ready for action.
+
+图示
+---------
+
+.. code-block:: python
+
+    '''
+    
+    0. 每一个worker_thread都保存了所有的consumer, 是一个dict, key是queue_name, value就是consumer_thread实例
+    
+       self.comsumers = {'queue1': consumer1, 'queue2': consumer2, ...}
+    
+    1. m个worker线程, n个consumer线程, 其中m是可以配置的, 默认是8, n是和queue有关的, 一个queue对应一个指定的consumer_thread
+    
+    2. 并且, 一个consumer_thread, 会开启一个连接, 所以, 至少有m个连接
+    
+    3. m个worker线程和n个consumer线程通过一个worker_queue来交互
+    
+    4. 每一个consumer_thread都有自己的一个ack_queue, 然后worker_thread调用
+    
+    5. 每一个consumer_thread只消费自己的queue的消息, 也只ack自己queue的消息
+    
+    6. 每一个worker_thread可以任意处理某个queue的消息, 但是ack的时候, 必须是把ack发送给queue指定的consumer
+
+    7. 当consumer收到消息之后, put到work_queue, 然后监听自己的ack_queue
+    
+    一般消息的处理:
+    
+    m个worker_thread                                                  n个queue
+                                                                      n个consumer_thread        至少n个connection
+    
+    worker_thread1  ---                                       <---    consumer_thread1    <---  connection1
+               
+    worker_thread2  ---     <---(task, msg) work_queue <---   <---    consumer_thread2    <---  connection2
+    
+    worker_thread3  ---                                       <---    consumer_thread3    <---  connection3
+    
+    worker_thread4  ---
+    
+    
+    ack的处理:
+    
+              处理queue2的msg, 必须发送给consumer2的ack_queue
+    worker1  ------------------------------------------------->   ack_queue2 ---> onsumer_thread2
+    
+              处理queue1的msg, 必须发送给consumer1的ack_queue
+    worker3  ------------------------------------------------->   ack_queue1 ---> onsumer_thread1
+    
+    
+    '''
+
+
+
 
 consumer线程
 ----------------
